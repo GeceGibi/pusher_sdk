@@ -33,6 +33,7 @@ public enum PusherConfig {
   public static let appVersionCodeKey = "pusher.app_version_code"
   public static let osVersionKey = "pusher.os_version"
   public static let appVersionKey = "pusher.app_version"
+  public static let enableLogsKey = "pusher.enable_logs"
   public static let defaultBaseUrl = "https://stats.pusher.tr"
 
   /// UserDefaults for the main app or the shared App Group.
@@ -73,7 +74,7 @@ public enum PusherConfig {
     return bundleId
   }
 
-  /// Stores [projectId] and [statsKey] only. Stats host is fixed.
+  /// Stores [projectId] and [statsKey] only.
   public static func save(
     projectId: String,
     statsKey: String
@@ -82,6 +83,19 @@ public enum PusherConfig {
     store.set(projectId, forKey: projectIdKey)
     store.set(statsKey, forKey: statsKeyKey)
     store.synchronize()
+  }
+
+  /// Persists and applies non-error logging for native + NSE.
+  public static func setEnableLogs(_ enabled: Bool) {
+    let store = defaults()
+    store.set(enabled, forKey: enableLogsKey)
+    store.synchronize()
+    PusherLog.enabled = enabled
+  }
+
+  /// Restores `PusherLog.enabled` from defaults (NSE / cold start).
+  public static func syncLogging() {
+    PusherLog.enabled = defaults().bool(forKey: enableLogsKey)
   }
 
   /// Persists device fields from hello so NSE receipts can reuse them.
@@ -133,7 +147,7 @@ public enum PusherConfig {
     trimmed(defaults().string(forKey: statsKeyKey))
   }
 
-  /// Fixed stats host. Not configurable from Flutter.
+  /// Fixed API base URL. Not configurable from Flutter.
   public static func baseUrl() -> String {
     return defaultBaseUrl
   }

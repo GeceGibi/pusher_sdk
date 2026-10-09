@@ -6,18 +6,14 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// Flutter client for stats.pusher.tr.
+import 'package:pusher/src/pusher_notification_status.dart';
+
+/// Flutter client for the Pusher mobile SDK.
 ///
 /// [init] writes keys to native storage, posts device hello via native HTTP,
 /// and attaches foreground FCM listeners. Delivered receipts in background
 /// come from native (Android C2DM receiver / iOS Notification Service Extension).
 abstract final class Pusher {
-  /// Delivered receipt status.
-  static const statusDelivered = 1;
-
-  /// Opened receipt status.
-  static const statusOpened = 2;
-
   /// Log tag / prefix. Filter: `adb logcat | rg Pusher` or `-s Pusher`.
   static const logTag = 'Pusher';
 
@@ -27,6 +23,9 @@ abstract final class Pusher {
   static bool _attached = false;
   static bool _initialized = false;
 
+  /// Non-error diagnostics. Defaults to [kDebugMode]; set via [init].
+  static bool _logsEnabled = kDebugMode;
+
   /// True after a successful [init] in this isolate.
   static bool get isInitialized => _initialized;
 
@@ -35,12 +34,19 @@ abstract final class Pusher {
 
   /// Loads keys into native, posts hello, attaches foreground listeners.
   ///
-  /// Host only passes [projectId] and [statsKey]. Stats host and iOS App Group
-  /// (`group.<mainBundleId>`) are fixed by the plugin — see README for NSE setup.
+  /// Host only passes [projectId] and [statsKey]. iOS App Group
+  /// (`group.<mainBundleId>`) is fixed by the plugin — see README for NSE
+  /// setup.
+  ///
+  /// [enableLogs] defaults to [kDebugMode]. Pass `false` to silence
+  /// non-error logs even in debug. Errors always log.
   static Future<void> init({
     required String projectId,
     required String statsKey,
+    bool? enableLogs,
   }) async {
+    _logsEnabled = enableLogs ?? kDebugMode;
+
     final pid = projectId.trim();
     final key = statsKey.trim();
 
@@ -59,10 +65,8 @@ abstract final class Pusher {
 
     _log('init start projectId=$pid');
 
-    final args = await _helloArgs(
-      projectId: pid,
-      statsKey: key,
-    );
+    final args = await _helloArgs(projectId: pid, statsKey: key);
+    args['enableLogs'] = _logsEnabled;
 
     final id = await _channel.invokeMethod<String>('init', args);
     _deviceId = id;
@@ -89,12 +93,12 @@ abstract final class Pusher {
 
     FirebaseMessaging.onMessage.listen((message) {
       _log('onMessage data=${message.data}');
-      unawaited(_receiptFromMessage(message, statusDelivered));
+      unawaited(_receiptFromMessage(message, .delivered));
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
       _log('onMessageOpenedApp data=${message.data}');
-      unawaited(_receiptFromMessage(message, statusOpened));
+      unawaited(_receiptFromMessage(message, .opened));
     });
 
     unawaited(_openFromTerminated());
@@ -106,7 +110,7 @@ abstract final class Pusher {
 
     if (initial != null) {
       _log('getInitialMessage data=${initial.data}');
-      await _receiptFromMessage(initial, statusOpened);
+      await _receiptFromMessage(initial, .opened);
     } else {
       _log('getInitialMessage null');
     }
@@ -118,7 +122,7 @@ abstract final class Pusher {
   /// register `FirebaseMessaging.onBackgroundMessage`.
   static Future<void> onBackgroundMessage(RemoteMessage message) async {
     _log('onBackgroundMessage data=${message.data}');
-    await _receiptFromMessage(message, statusDelivered);
+    await _receiptFromMessage(message, .delivered);
   }
 
   /// Posts device hello via native HTTP.
@@ -150,9 +154,12 @@ abstract final class Pusher {
   }
 
   /// Posts one receipt via native HTTP.
+  ///
+  /// Hosts that show a local notification (e.g. Android foreground) should call
+  /// this on tap: `unawaited(Pusher.receipt(nid: nid, status: .opened));`.
   static Future<void> receipt({
     required String nid,
-    required int status,
+    required PusherNotificationStatus status,
   }) async {
     final trimmed = nid.trim();
 
@@ -161,27 +168,22 @@ abstract final class Pusher {
       return;
     }
 
-    if (status != statusDelivered && status != statusOpened) {
-      _log('receipt skip: bad status=$status');
-      return;
-    }
-
     if (_platform() == null) {
       _log('receipt skip: unsupported platform');
       return;
     }
 
-    _log('receipt invoke nid=$trimmed status=$status');
+    _log('receipt invoke nid=$trimmed status=${status.id}');
     await _channel.invokeMethod<void>('receipt', {
       'nid': trimmed,
-      'status': status,
+      'status': status.id,
     });
   }
 
   /// Delivered / opened from an FCM [message] when `data.nid` is present.
   static Future<void> _receiptFromMessage(
     RemoteMessage message,
-    int status,
+    PusherNotificationStatus status,
   ) async {
     try {
       final nid = message.data['nid']?.toString().trim();
@@ -193,7 +195,7 @@ abstract final class Pusher {
 
       await receipt(nid: nid, status: status);
     } on Object catch (error) {
-      _log('receiptFromMessage error: $error');
+      _logError('receiptFromMessage error: $error');
     }
   }
 
@@ -257,7 +259,7 @@ abstract final class Pusher {
         appVersion: appVersion.isEmpty ? null : appVersion,
       );
     } on Object catch (error) {
-      _log('deviceInfo error: $error');
+      _logError('deviceInfo error: $error');
       return null;
     }
   }
@@ -279,7 +281,7 @@ abstract final class Pusher {
 
       return token.trim();
     } on Object catch (error) {
-      _log('fcmToken error: $error');
+      _logError('fcmToken error: $error');
       return null;
     }
   }
@@ -297,7 +299,17 @@ abstract final class Pusher {
     return null;
   }
 
+  /// Diagnostic log. No-op unless [_logsEnabled].
   static void _log(String message) {
+    if (!_logsEnabled) {
+      return;
+    }
+
+    debugPrint('$logTag $message');
+  }
+
+  /// Error log. Always prints.
+  static void _logError(String message) {
     debugPrint('$logTag $message');
   }
 }

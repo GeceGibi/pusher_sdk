@@ -8,6 +8,7 @@ import com.google.firebase.messaging.RemoteMessage
 /// Native FCM receive hook. Posts delivered when `data.nid` is set.
 class PusherMessagingReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
+    PusherConfig.syncLogging(context)
     PusherLog.d("receiver.onReceive action=${intent.action}")
 
     val extras = intent.extras

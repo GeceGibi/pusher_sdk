@@ -17,7 +17,7 @@ class MyApp extends StatelessWidget {
         body: Center(
           child: Text(
             'pusher — call Pusher.init(projectId:, statsKey:)\n'
-            'statusDelivered=${Pusher.statusDelivered}',
+            'status=${PusherNotificationStatus.opened.id}',
             textAlign: .center,
           ),
         ),

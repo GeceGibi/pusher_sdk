@@ -1,7 +1,7 @@
 name: pusher
-description: Device hello and notification receipt client for stats.pusher.tr.
+description: Pusher mobile SDK — device hello and notification receipts.
 publish_to: none
-version: 0.7.0
+version: 0.8.0
 homepage: https://github.com/GeceGibi/pusher_sdk
 
 environment:

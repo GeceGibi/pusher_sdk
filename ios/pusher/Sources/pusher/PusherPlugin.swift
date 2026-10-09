@@ -10,6 +10,7 @@ public class PusherPlugin: NSObject, FlutterPlugin {
     )
     let instance = PusherPlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
+    PusherConfig.syncLogging()
     PusherLog.d("plugin registered")
   }
 
@@ -38,6 +39,8 @@ public class PusherPlugin: NSObject, FlutterPlugin {
         projectId: projectId,
         statsKey: statsKey
       )
+      let enableLogs = args["enableLogs"] as? Bool ?? false
+      PusherConfig.setEnableLogs(enableLogs)
       let deviceId = PusherConfig.resolveDeviceId()
       PusherLog.d("init saved projectId=\(projectId) deviceId=\(deviceId)")
       helloFromArgs(args)

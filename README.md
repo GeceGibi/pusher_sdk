@@ -1,6 +1,6 @@
 # pusher
 
-Flutter plugin for [stats.pusher.tr](https://stats.pusher.tr).
+Pusher mobile SDK for Flutter: device hello and notification receipts.
 
 Flutter supplies **project id** and **stats key**. Native Android/iOS own
 HMAC signing and HTTP (`hello` / receipts). `device_helpers` stays a Dart
@@ -31,8 +31,6 @@ Android package: `com.pusher.sdk`.
 | `projectId` | Project id (`pid`) from the panel |
 | `statsKey` | Per-project stats key from the panel |
 
-Stats host is fixed to `https://stats.pusher.tr` (not overridable).
-
 ## Quick start
 
 ```dart
@@ -41,12 +39,20 @@ import 'package:pusher/pusher.dart';
 await Pusher.init(
   projectId: 'YOUR_PROJECT_ID',
   statsKey: 'YOUR_STATS_KEY',
+  // enableLogs: false, // optional; defaults to kDebugMode
 );
 ```
 
 `init` writes config to native storage, posts device hello on a native thread,
 and attaches foreground FCM listeners (opened / foreground delivered via
 MethodChannel → native HTTP).
+
+Hosts that show a local notification (Android foreground) should report open
+themselves when the user taps it:
+
+```dart
+unawaited(Pusher.receipt(nid: nid, status: .opened));
+```
 
 ## Background delivered
 

@@ -16,6 +16,7 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
     context = binding.applicationContext
     channel = MethodChannel(binding.binaryMessenger, "pusher")
     channel.setMethodCallHandler(this)
+    PusherConfig.syncLogging(binding.applicationContext)
     PusherLog.d("plugin attached")
   }
 
@@ -47,6 +48,8 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
         }
 
         PusherConfig.save(ctx, projectId, statsKey)
+        val enableLogs = call.argument<Boolean>("enableLogs") ?: false
+        PusherConfig.setEnableLogs(ctx, enableLogs)
         val deviceId = PusherConfig.resolveDeviceId(ctx)
         PusherLog.d("init saved projectId=$projectId deviceId=$deviceId")
         helloFromCall(ctx, call)

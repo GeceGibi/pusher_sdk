@@ -4,13 +4,13 @@
 Pod::Spec.new do |s|
   s.name             = 'pusher'
   s.version          = '0.7.0'
-  s.summary          = 'Native stats client for stats.pusher.tr'
+  s.summary          = 'Pusher mobile SDK (native hello / receipts)'
   s.description      = <<-DESC
-Device hello and notification receipts for Pusher stats.
+Native device hello and notification receipts for the Pusher Flutter plugin.
                        DESC
   s.homepage         = 'https://github.com/GeceGibi/pusher_sdk'
   s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Pusher' => 'dev@pusher.tr' }
+  s.author           = { 'Pusher' => 'pusher@localhost' }
   s.source           = { :path => '.' }
   s.platform = :ios, '15.0'
   s.swift_version = '5.0'

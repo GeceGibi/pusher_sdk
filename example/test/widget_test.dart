@@ -5,6 +5,6 @@ void main() {
   testWidgets('shows plugin hint', (tester) async {
     await tester.pumpWidget(const MyApp());
     expect(find.textContaining('Pusher.init'), findsOneWidget);
-    expect(find.textContaining('statusDelivered='), findsOneWidget);
+    expect(find.textContaining('status='), findsOneWidget);
   });
 }

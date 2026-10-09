@@ -24,13 +24,14 @@ internal object PusherConfig {
   const val APP_VERSION_CODE = "pusher.app_version_code"
   const val OS_VERSION = "pusher.os_version"
   const val APP_VERSION = "pusher.app_version"
+  const val ENABLE_LOGS = "pusher.enable_logs"
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
 
   fun prefs(context: Context): SharedPreferences {
     return context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
   }
 
-  /// Stores [projectId] and [statsKey] only. Stats host is fixed.
+  /// Stores [projectId] and [statsKey] only.
   fun save(
     context: Context,
     projectId: String,
@@ -41,6 +42,17 @@ internal object PusherConfig {
       .putString(PROJECT_ID, projectId)
       .putString(STATS_KEY, statsKey)
       .apply()
+  }
+
+  /// Persists and applies non-error logging for native + receivers.
+  fun setEnableLogs(context: Context, enabled: Boolean) {
+    prefs(context).edit().putBoolean(ENABLE_LOGS, enabled).apply()
+    PusherLog.enabled = enabled
+  }
+
+  /// Restores [PusherLog.enabled] from prefs (cold receiver / process restart).
+  fun syncLogging(context: Context) {
+    PusherLog.enabled = prefs(context).getBoolean(ENABLE_LOGS, false)
   }
 
   /// Persists device fields from hello so background receipts can reuse them.
@@ -100,7 +112,7 @@ internal object PusherConfig {
     return prefs(context).getString(STATS_KEY, null)?.trim()?.takeIf { it.isNotEmpty() }
   }
 
-  /// Fixed stats host. Not configurable from Flutter.
+  /// Fixed API base URL. Not configurable from Flutter.
   fun baseUrl(): String {
     return DEFAULT_BASE_URL
   }

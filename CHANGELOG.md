@@ -1,3 +1,10 @@
+## 0.8.0
+
+- Replaces int receipt statuses with `PusherNotificationStatus`
+  (`delivered` / `opened`). Use `Pusher.receipt(nid:, status: .opened)`.
+- Non-error logs follow `kDebugMode`; pass `enableLogs: false` on `init` to
+  silence them. Errors always log (Dart + Android + iOS).
+
 ## 0.7.0
 
 - Persists device fields from hello and sends them on every receipt
