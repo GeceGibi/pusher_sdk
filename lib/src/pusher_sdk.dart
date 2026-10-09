@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:device_helpers/device_helpers.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:pusher_sdk/src/config_store.dart';
 import 'package:pusher_sdk/src/device_id.dart';
@@ -57,11 +58,7 @@ abstract final class PusherSdk {
       throw ArgumentError.value(statsKey, 'statsKey', 'required');
     }
 
-    final config = SdkConfig(
-      projectId: pid,
-      statsKey: key,
-      baseUrl: host,
-    );
+    final config = SdkConfig(projectId: pid, statsKey: key, baseUrl: host);
     await ConfigStore.save(config);
     await _apply(config);
     attach();
@@ -140,7 +137,9 @@ abstract final class PusherSdk {
 
   /// Posts device hello. Optional FCM [token] when available.
   ///
-  /// Called from [init]. Uses [DeviceHelpers] for `os_version` and `app_version`.
+  /// Called from [init]. Requires [DeviceHelpers] fields for `is_emulator`,
+  /// `debug_mode`, and `app_version_code`; skips the request when they are
+  /// unavailable. Also sends `os_version` and `app_version` when present.
   static Future<void> hello({String? token}) async {
     await _ensureReady();
 
@@ -150,15 +149,23 @@ abstract final class PusherSdk {
       return;
     }
 
-    final resolvedToken = token ?? await _fcmToken();
     final device = await _deviceInfo();
+
+    if (device == null) {
+      return;
+    }
+
+    final resolvedToken = token ?? await _fcmToken();
     final body = <String, dynamic>{
       'device_id': _deviceId,
       'platform': platform,
       'locale': Platform.localeName,
+      'is_emulator': device.isEmulator,
+      'debug_mode': device.debugMode,
+      'app_version_code': device.appVersionCode,
       'token': ?resolvedToken,
-      'os_version': ?device?.osVersion,
-      'app_version': ?device?.appVersion,
+      'os_version': ?device.osVersion,
+      'app_version': ?device.appVersion,
     };
 
     await _post(path: '/$_projectId/hi', body: body);
@@ -266,14 +273,32 @@ abstract final class PusherSdk {
     }
   }
 
-  /// OS / app fields from [DeviceHelpers], or null on failure.
-  static Future<({String? osVersion, String? appVersion})?> _deviceInfo() async {
+  /// Required hello fields from [DeviceHelpers], or null on failure / empty build.
+  static Future<
+    ({
+      bool isEmulator,
+      bool debugMode,
+      String appVersionCode,
+      String? osVersion,
+      String? appVersion,
+    })?
+  >
+  _deviceInfo() async {
     try {
       final info = await DeviceHelpers.getInfo();
+      final appVersionCode = info.appBuild.trim();
+
+      if (appVersionCode.isEmpty) {
+        return null;
+      }
+
       final osVersion = info.osVersion.trim();
       final appVersion = info.appVersion.trim();
 
       return (
+        isEmulator: info.isEmulator,
+        debugMode: kDebugMode || info.isDebugMode,
+        appVersionCode: appVersionCode,
         osVersion: osVersion.isEmpty ? null : osVersion,
         appVersion: appVersion.isEmpty ? null : appVersion,
       );

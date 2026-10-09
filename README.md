@@ -156,5 +156,7 @@ Sign path **without** `/v1` (nginx strips it). Public URL is `/v1/...`.
 ## Platform
 
 Hello / receipts run on **android** and **ios**. Other hosts skip the request.
-Device fields (`os_version`, `app_version`) come from
-[device_helpers](https://github.com/GeceGibi/device_helpers).
+Hello requires `is_emulator`, `debug_mode`, and `app_version_code` from
+[device_helpers](https://github.com/GeceGibi/device_helpers) (`debug_mode` is
+`kDebugMode || isDebugMode`). Also sends `os_version` / `app_version` when set;
+`token` stays optional.
