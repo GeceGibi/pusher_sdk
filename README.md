@@ -12,24 +12,26 @@ inside the SDK.
 
 ## Install
 
-Path (local) or git — this package is not published to pub.dev.
-
 ```yaml
 dependencies:
   pusher_sdk:
-    path: ../pusher_sdk
+    git:
+      url: https://github.com/GeceGibi/pusher_sdk.git
 ```
 
 Requires Firebase Messaging in the host app (`Firebase.initializeApp` before use).
 
 ## Keys
 
-From the pusher.tr panel → project → **Settings → Stats key**:
+> Sign up at [pusher.tr](https://pusher.tr), create a project, then copy
+> **project id** (`pid`) and generate the **Stats key** from the panel
+> (project → Settings → Stats key). Both values come from the panel — they
+> are not global env secrets.
 
 | Arg | What |
 | --- | --- |
-| `projectId` | Project ObjectId hex |
-| `statsKey` | Per-project stats key from the panel (not a global env secret) |
+| `projectId` | Project id (`pid`) from the panel |
+| `statsKey` | Per-project stats key from the panel |
 | `baseUrl` | Optional, default `https://stats.pusher.tr` |
 
 ## Quick start
@@ -70,14 +72,17 @@ handler:
 
 ```dart
 @pragma('vm:entry-point')
-Future<void> onBg(RemoteMessage message) async {
-  await Firebase.initializeApp();
+Future<void> onBackgroundMessageHandler(RemoteMessage message) async {
   await PusherSdk.onBackgroundMessage(message);
 }
 
 // early in main / runner:
-FirebaseMessaging.onBackgroundMessage(onBg);
+FirebaseMessaging.onBackgroundMessage(onBackgroundMessageHandler);
 ```
+
+`PusherSdk.onBackgroundMessage` only reloads prefs and POSTs a receipt — it does
+**not** need `Firebase.initializeApp()` in this handler. Add Firebase init only
+if your own code in the same handler uses other Firebase APIs.
 
 Posts **delivered** when `message.data['nid']` is set.
 

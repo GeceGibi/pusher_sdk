@@ -61,11 +61,11 @@ packages:
     dependency: "direct main"
     description:
       path: "."
-      ref: a6cd68d3a6aabdbdec0c045ca014f8d18ff6cbaa
-      resolved-ref: a6cd68d3a6aabdbdec0c045ca014f8d18ff6cbaa
+      ref: HEAD
+      resolved-ref: aab0c824385a64b8ee3e48fda5e3642544922032
       url: "https://github.com/GeceGibi/device_helpers.git"
     source: git
-    version: "2.0.0+30"
+    version: "2.0.1+31"
   fake_async:
     dependency: transitive
     description:
