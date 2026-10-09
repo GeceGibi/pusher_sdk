@@ -5,7 +5,7 @@
   "packages": [
     {
       "name": "pusher",
-      "version": "0.6.0",
+      "version": "0.7.0",
       "dependencies": [
         "device_helpers",
         "firebase_messaging",

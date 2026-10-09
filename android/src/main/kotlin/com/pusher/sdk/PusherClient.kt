@@ -2,6 +2,8 @@ package com.pusher.sdk
 
 import android.content.Context
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
@@ -40,18 +42,27 @@ object PusherClient {
       return
     }
 
+    val fields = PusherDeviceFields(
+      isEmulator = isEmulator,
+      debugMode = debugMode,
+      appVersionCode = appVersionCode.trim(),
+      osVersion = osVersion,
+      appVersion = appVersion,
+    )
+    PusherConfig.saveDeviceFields(context, fields)
+
     val projectId = PusherConfig.projectId(context) ?: return
     val deviceId = PusherConfig.resolveDeviceId(context)
     val body = JSONObject()
     body.put("device_id", deviceId)
     body.put("platform", "android")
     body.put("locale", locale?.takeIf { it.isNotBlank() } ?: Locale.getDefault().toString())
-    body.put("is_emulator", isEmulator)
-    body.put("debug_mode", debugMode)
-    body.put("app_version_code", appVersionCode)
+    body.put("is_emulator", fields.isEmulator)
+    body.put("debug_mode", fields.debugMode)
+    body.put("app_version_code", fields.appVersionCode)
     putOptional(body, "token", token)
-    putOptional(body, "os_version", osVersion)
-    putOptional(body, "app_version", appVersion)
+    putOptional(body, "os_version", fields.osVersion)
+    putOptional(body, "app_version", fields.appVersion)
 
     PusherLog.d("hello enqueue deviceId=$deviceId projectId=$projectId")
     postAsync(context, "/$projectId/hi", body)
@@ -62,14 +73,17 @@ object PusherClient {
     val trimmed = nid.trim()
     val projectId = PusherConfig.projectId(context)
     val ready = PusherConfig.isReady(context)
+    val fields = PusherConfig.deviceFields(context)
     val valid = trimmed.isNotEmpty() &&
       (status == STATUS_DELIVERED || status == STATUS_OPENED) &&
       ready &&
-      projectId != null
+      projectId != null &&
+      fields != null
 
     if (!valid) {
       PusherLog.w(
-        "receipt skip: nid='$trimmed' status=$status ready=$ready projectId=$projectId",
+        "receipt skip: nid='$trimmed' status=$status ready=$ready " +
+          "projectId=$projectId deviceFields=${fields != null}",
       )
       onDone?.invoke()
       return
@@ -81,6 +95,11 @@ object PusherClient {
     body.put("platform", "android")
     body.put("status", status)
     body.put("locale", Locale.getDefault().toString())
+    body.put("is_emulator", fields!!.isEmulator)
+    body.put("debug_mode", fields.debugMode)
+    body.put("app_version_code", fields.appVersionCode)
+    putOptional(body, "os_version", fields.osVersion)
+    putOptional(body, "app_version", fields.appVersion)
 
     PusherLog.d("receipt enqueue nid=$trimmed status=$status deviceId=$deviceId")
     postAsync(context, "/$projectId/n/$trimmed", body, onDone)
@@ -159,14 +178,26 @@ object PusherClient {
       }
 
       val code = connection.responseCode
-      if (code < 200 || code >= 300) {
-        val err = connection.errorStream?.bufferedReader()?.use { it.readText() }
-        PusherLog.w("HTTP $code for $path body=${err ?: ""}")
-      } else {
-        PusherLog.d("HTTP $code for $path ok")
-      }
+      val responseBody = readBody(connection)
+      PusherLog.d("POST response path=$path http=$code body=$responseBody")
     } finally {
       connection.disconnect()
+    }
+  }
+
+  private fun readBody(connection: HttpURLConnection): String {
+    val stream = if (connection.responseCode >= 400) {
+      connection.errorStream
+    } else {
+      connection.inputStream
+    }
+
+    if (stream == null) {
+      return ""
+    }
+
+    return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
+      reader.readText()
     }
   }
 }

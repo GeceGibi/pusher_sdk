@@ -1,10 +1,38 @@
 import Foundation
 
+/// Device fields required on every stats receipt (and hello).
+public struct PusherDeviceFields {
+  public let isEmulator: Bool
+  public let debugMode: Bool
+  public let appVersionCode: String
+  public let osVersion: String?
+  public let appVersion: String?
+
+  public init(
+    isEmulator: Bool,
+    debugMode: Bool,
+    appVersionCode: String,
+    osVersion: String? = nil,
+    appVersion: String? = nil
+  ) {
+    self.isEmulator = isEmulator
+    self.debugMode = debugMode
+    self.appVersionCode = appVersionCode
+    self.osVersion = osVersion
+    self.appVersion = appVersion
+  }
+}
+
 /// Persists project keys and install id. Uses App Group when available (NSE).
 public enum PusherConfig {
   public static let projectIdKey = "pusher.project_id"
   public static let statsKeyKey = "pusher.stats_key"
   public static let deviceIdKey = "pusher.device_id"
+  public static let isEmulatorKey = "pusher.is_emulator"
+  public static let debugModeKey = "pusher.debug_mode"
+  public static let appVersionCodeKey = "pusher.app_version_code"
+  public static let osVersionKey = "pusher.os_version"
+  public static let appVersionKey = "pusher.app_version"
   public static let defaultBaseUrl = "https://stats.pusher.tr"
 
   /// UserDefaults for the main app or the shared App Group.
@@ -54,6 +82,47 @@ public enum PusherConfig {
     store.set(projectId, forKey: projectIdKey)
     store.set(statsKey, forKey: statsKeyKey)
     store.synchronize()
+  }
+
+  /// Persists device fields from hello so NSE receipts can reuse them.
+  public static func saveDeviceFields(_ fields: PusherDeviceFields) {
+    let store = defaults()
+    store.set(fields.isEmulator, forKey: isEmulatorKey)
+    store.set(fields.debugMode, forKey: debugModeKey)
+    store.set(fields.appVersionCode, forKey: appVersionCodeKey)
+
+    if let osVersion = trimmed(fields.osVersion) {
+      store.set(osVersion, forKey: osVersionKey)
+    } else {
+      store.removeObject(forKey: osVersionKey)
+    }
+
+    if let appVersion = trimmed(fields.appVersion) {
+      store.set(appVersion, forKey: appVersionKey)
+    } else {
+      store.removeObject(forKey: appVersionKey)
+    }
+
+    store.synchronize()
+  }
+
+  /// Last saved device fields, or nil when hello has not stored them yet.
+  public static func deviceFields() -> PusherDeviceFields? {
+    let store = defaults()
+    guard store.object(forKey: isEmulatorKey) != nil,
+          store.object(forKey: debugModeKey) != nil,
+          let appVersionCode = trimmed(store.string(forKey: appVersionCodeKey))
+    else {
+      return nil
+    }
+
+    return PusherDeviceFields(
+      isEmulator: store.bool(forKey: isEmulatorKey),
+      debugMode: store.bool(forKey: debugModeKey),
+      appVersionCode: appVersionCode,
+      osVersion: trimmed(store.string(forKey: osVersionKey)),
+      appVersion: trimmed(store.string(forKey: appVersionKey))
+    )
   }
 
   public static func projectId() -> String? {

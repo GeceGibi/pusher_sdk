@@ -3,7 +3,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'pusher'
-  s.version          = '0.6.0'
+  s.version          = '0.7.0'
   s.summary          = 'Native stats client for stats.pusher.tr'
   s.description      = <<-DESC
 Device hello and notification receipts for Pusher stats.

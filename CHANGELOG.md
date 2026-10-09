@@ -1,3 +1,9 @@
+## 0.7.0
+
+- Persists device fields from hello and sends them on every receipt
+  (`is_emulator`, `debug_mode`, `app_version_code`).
+- Treats API `{status:false}` as failure even when HTTP is 200.
+
 ## 0.6.0
 
 - Adds `Pusher` debug logs on Dart / Android / iOS (filter: `adb logcat -s Pusher`).

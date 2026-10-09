@@ -4,12 +4,26 @@ import android.content.Context
 import android.content.SharedPreferences
 import java.util.UUID
 
-/// Persists project keys and stable install id for native hello / receipts.
+/// Device fields required on every stats receipt (and hello).
+internal data class PusherDeviceFields(
+  val isEmulator: Boolean,
+  val debugMode: Boolean,
+  val appVersionCode: String,
+  val osVersion: String? = null,
+  val appVersion: String? = null,
+)
+
+/// Persists project keys, install id, and last known device fields.
 internal object PusherConfig {
   private const val PREFS = "pusher"
   const val PROJECT_ID = "pusher.project_id"
   const val STATS_KEY = "pusher.stats_key"
   const val DEVICE_ID = "pusher.device_id"
+  const val IS_EMULATOR = "pusher.is_emulator"
+  const val DEBUG_MODE = "pusher.debug_mode"
+  const val APP_VERSION_CODE = "pusher.app_version_code"
+  const val OS_VERSION = "pusher.os_version"
+  const val APP_VERSION = "pusher.app_version"
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
 
   fun prefs(context: Context): SharedPreferences {
@@ -27,6 +41,55 @@ internal object PusherConfig {
       .putString(PROJECT_ID, projectId)
       .putString(STATS_KEY, statsKey)
       .apply()
+  }
+
+  /// Persists device fields from hello so background receipts can reuse them.
+  fun saveDeviceFields(context: Context, fields: PusherDeviceFields) {
+    val editor = prefs(context)
+      .edit()
+      .putBoolean(IS_EMULATOR, fields.isEmulator)
+      .putBoolean(DEBUG_MODE, fields.debugMode)
+      .putString(APP_VERSION_CODE, fields.appVersionCode)
+
+    val osVersion = fields.osVersion?.trim()
+    if (osVersion.isNullOrEmpty()) {
+      editor.remove(OS_VERSION)
+    } else {
+      editor.putString(OS_VERSION, osVersion)
+    }
+
+    val appVersion = fields.appVersion?.trim()
+    if (appVersion.isNullOrEmpty()) {
+      editor.remove(APP_VERSION)
+    } else {
+      editor.putString(APP_VERSION, appVersion)
+    }
+
+    editor.apply()
+  }
+
+  /// Last saved device fields, or null when hello has not stored them yet.
+  fun deviceFields(context: Context): PusherDeviceFields? {
+    val store = prefs(context)
+    if (!store.contains(IS_EMULATOR) ||
+      !store.contains(DEBUG_MODE) ||
+      !store.contains(APP_VERSION_CODE)
+    ) {
+      return null
+    }
+
+    val appVersionCode = store.getString(APP_VERSION_CODE, null)?.trim()
+    if (appVersionCode.isNullOrEmpty()) {
+      return null
+    }
+
+    return PusherDeviceFields(
+      isEmulator = store.getBoolean(IS_EMULATOR, false),
+      debugMode = store.getBoolean(DEBUG_MODE, false),
+      appVersionCode = appVersionCode,
+      osVersion = store.getString(OS_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() },
+      appVersion = store.getString(APP_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() },
+    )
   }
 
   fun projectId(context: Context): String? {

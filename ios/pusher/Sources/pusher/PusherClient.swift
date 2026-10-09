@@ -30,24 +30,33 @@ public enum PusherClient {
       return
     }
 
+    let fields = PusherDeviceFields(
+      isEmulator: isEmulator,
+      debugMode: debugMode,
+      appVersionCode: appVersionCode,
+      osVersion: trimmed(osVersion),
+      appVersion: trimmed(appVersion)
+    )
+    PusherConfig.saveDeviceFields(fields)
+
     var body: [String: Any] = [
       "device_id": PusherConfig.resolveDeviceId(),
       "platform": "ios",
       "locale": trimmed(locale) ?? Locale.current.identifier,
-      "is_emulator": isEmulator,
-      "debug_mode": debugMode,
-      "app_version_code": appVersionCode,
+      "is_emulator": fields.isEmulator,
+      "debug_mode": fields.debugMode,
+      "app_version_code": fields.appVersionCode,
     ]
 
     if let token = trimmed(token) {
       body["token"] = token
     }
 
-    if let osVersion = trimmed(osVersion) {
+    if let osVersion = fields.osVersion {
       body["os_version"] = osVersion
     }
 
-    if let appVersion = trimmed(appVersion) {
+    if let appVersion = fields.appVersion {
       body["app_version"] = appVersion
     }
 
@@ -64,26 +73,40 @@ public enum PusherClient {
     let trimmedNid = nid.trimmingCharacters(in: .whitespacesAndNewlines)
     let ready = PusherConfig.isReady()
     let projectId = PusherConfig.projectId()
+    let fields = PusherConfig.deviceFields()
 
     guard
       !trimmedNid.isEmpty,
       status == statusDelivered || status == statusOpened,
       ready,
-      let projectId
+      let projectId,
+      let fields
     else {
       PusherLog.w(
-        "receipt skip: nid='\(trimmedNid)' status=\(status) ready=\(ready) projectId=\(projectId ?? "nil")"
+        "receipt skip: nid='\(trimmedNid)' status=\(status) ready=\(ready) " +
+          "projectId=\(projectId ?? "nil") deviceFields=\(fields != nil)"
       )
       completion?()
       return
     }
 
-    let body: [String: Any] = [
+    var body: [String: Any] = [
       "device_id": PusherConfig.resolveDeviceId(),
       "platform": "ios",
       "status": status,
       "locale": Locale.current.identifier,
+      "is_emulator": fields.isEmulator,
+      "debug_mode": fields.debugMode,
+      "app_version_code": fields.appVersionCode,
     ]
+
+    if let osVersion = fields.osVersion {
+      body["os_version"] = osVersion
+    }
+
+    if let appVersion = fields.appVersion {
+      body["app_version"] = appVersion
+    }
 
     PusherLog.d("receipt enqueue nid=\(trimmedNid) status=\(status)")
     postAsync(path: "/\(projectId)/n/\(trimmedNid)", body: body, completion: completion)
@@ -175,10 +198,14 @@ public enum PusherClient {
     let semaphore = DispatchSemaphore(value: 0)
     var requestError: Error?
     var statusCode = -1
+    var responseBody = ""
 
-    URLSession.shared.dataTask(with: request) { _, response, error in
+    URLSession.shared.dataTask(with: request) { data, response, error in
       requestError = error
       statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
+      if let data, let text = String(data: data, encoding: .utf8) {
+        responseBody = text
+      }
       semaphore.signal()
     }.resume()
 
@@ -187,10 +214,6 @@ public enum PusherClient {
       throw requestError
     }
 
-    if statusCode < 200 || statusCode >= 300 {
-      PusherLog.w("HTTP \(statusCode) for \(path)")
-    } else {
-      PusherLog.d("HTTP \(statusCode) for \(path) ok")
-    }
+    PusherLog.d("POST response path=\(path) http=\(statusCode) body=\(responseBody)")
   }
 }
