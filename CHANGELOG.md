@@ -1,3 +1,9 @@
+## 0.5.0
+
+- Splits iOS into `pusher/core` (no Flutter; for NSE) and `pusher/flutter`
+  (MethodChannel plugin for Runner).
+- SPM products: `pusher` + `pusher-core`.
+
 ## 0.3.0
 
 - Recreates the project as a standard Flutter plugin (`flutter create --template=plugin`).
