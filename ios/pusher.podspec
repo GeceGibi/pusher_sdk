@@ -3,7 +3,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'pusher'
-  s.version          = '0.5.0'
+  s.version          = '0.6.0'
   s.summary          = 'Native stats client for stats.pusher.tr'
   s.description      = <<-DESC
 Device hello and notification receipts for Pusher stats.
@@ -27,6 +27,7 @@ Device hello and notification receipts for Pusher stats.
 
   s.subspec 'core' do |ss|
     ss.source_files = [
+      'pusher/Sources/pusher/PusherLog.swift',
       'pusher/Sources/pusher/PusherConfig.swift',
       'pusher/Sources/pusher/PusherClient.swift',
       'pusher/Sources/pusher/PusherHmac.swift',

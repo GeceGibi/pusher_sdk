@@ -8,6 +8,7 @@ import Foundation
     _ userInfo: [AnyHashable: Any],
     completion: (() -> Void)? = nil
   ) {
+    PusherLog.d("NSE handleNotification")
     PusherClient.receipt(
       fromUserInfo: userInfo,
       status: PusherClient.statusDelivered,
@@ -20,6 +21,7 @@ import Foundation
     _ userInfo: [AnyHashable: Any],
     completion: (() -> Void)? = nil
   ) {
+    PusherLog.d("NSE handleOpened")
     PusherClient.receipt(
       fromUserInfo: userInfo,
       status: PusherClient.statusOpened,

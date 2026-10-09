@@ -1,3 +1,7 @@
+## 0.6.0
+
+- Adds `Pusher` debug logs on Dart / Android / iOS (filter: `adb logcat -s Pusher`).
+
 ## 0.5.0
 
 - Splits iOS into `pusher/core` (no Flutter; for NSE) and `pusher/flutter`

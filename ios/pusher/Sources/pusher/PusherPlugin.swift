@@ -10,10 +10,12 @@ public class PusherPlugin: NSObject, FlutterPlugin {
     )
     let instance = PusherPlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
+    PusherLog.d("plugin registered")
   }
 
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any] ?? [:]
+    PusherLog.d("method \(call.method)")
 
     switch call.method {
     case "init":
@@ -21,6 +23,7 @@ public class PusherPlugin: NSObject, FlutterPlugin {
         let projectId = stringArg(args, "projectId"),
         let statsKey = stringArg(args, "statsKey")
       else {
+        PusherLog.w("init invalid_args")
         result(
           FlutterError(
             code: "invalid_args",
@@ -35,8 +38,10 @@ public class PusherPlugin: NSObject, FlutterPlugin {
         projectId: projectId,
         statsKey: statsKey
       )
+      let deviceId = PusherConfig.resolveDeviceId()
+      PusherLog.d("init saved projectId=\(projectId) deviceId=\(deviceId)")
       helloFromArgs(args)
-      result(PusherConfig.resolveDeviceId())
+      result(deviceId)
 
     case "hello":
       helloFromArgs(args)
@@ -45,11 +50,13 @@ public class PusherPlugin: NSObject, FlutterPlugin {
     case "receipt":
       let nid = stringArg(args, "nid") ?? ""
       let status = args["status"] as? Int ?? -1
+      PusherLog.d("channel receipt nid=\(nid) status=\(status)")
       PusherClient.receipt(nid: nid, status: status)
       result(nil)
 
     case "deviceId":
       guard PusherConfig.isReady() else {
+        PusherLog.w("deviceId skip: not ready")
         result(nil)
         return
       }

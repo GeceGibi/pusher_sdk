@@ -16,19 +16,24 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
     context = binding.applicationContext
     channel = MethodChannel(binding.binaryMessenger, "pusher")
     channel.setMethodCallHandler(this)
+    PusherLog.d("plugin attached")
   }
 
   override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
     channel.setMethodCallHandler(null)
     context = null
+    PusherLog.d("plugin detached")
   }
 
   override fun onMethodCall(call: MethodCall, result: Result) {
     val ctx = context
     if (ctx == null) {
+      PusherLog.w("method ${call.method} skip: no context")
       result.error("no_context", "Plugin not attached", null)
       return
     }
+
+    PusherLog.d("method ${call.method}")
 
     when (call.method) {
       "init" -> {
@@ -36,12 +41,14 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
         val statsKey = call.argument<String>("statsKey")?.trim().orEmpty()
 
         if (projectId.isEmpty() || statsKey.isEmpty()) {
+          PusherLog.w("init invalid_args")
           result.error("invalid_args", "projectId and statsKey required", null)
           return
         }
 
         PusherConfig.save(ctx, projectId, statsKey)
         val deviceId = PusherConfig.resolveDeviceId(ctx)
+        PusherLog.d("init saved projectId=$projectId deviceId=$deviceId")
         helloFromCall(ctx, call)
         result.success(deviceId)
       }
@@ -54,12 +61,14 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
       "receipt" -> {
         val nid = call.argument<String>("nid")?.trim().orEmpty()
         val status = call.argument<Int>("status") ?: -1
+        PusherLog.d("channel receipt nid=$nid status=$status")
         PusherClient.receipt(ctx, nid, status)
         result.success(null)
       }
 
       "deviceId" -> {
         if (!PusherConfig.isReady(ctx)) {
+          PusherLog.w("deviceId skip: not ready")
           result.success(null)
           return
         }

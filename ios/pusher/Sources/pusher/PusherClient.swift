@@ -16,6 +16,7 @@ public enum PusherClient {
     appVersion: String? = nil
   ) {
     guard PusherConfig.isReady() else {
+      PusherLog.w("hello skip: config not ready")
       return
     }
 
@@ -25,6 +26,7 @@ public enum PusherClient {
       let debugMode,
       let projectId = PusherConfig.projectId()
     else {
+      PusherLog.w("hello skip: missing required device fields")
       return
     }
 
@@ -49,6 +51,7 @@ public enum PusherClient {
       body["app_version"] = appVersion
     }
 
+    PusherLog.d("hello enqueue projectId=\(projectId)")
     postAsync(path: "/\(projectId)/hi", body: body)
   }
 
@@ -59,13 +62,18 @@ public enum PusherClient {
     completion: (() -> Void)? = nil
   ) {
     let trimmedNid = nid.trimmingCharacters(in: .whitespacesAndNewlines)
+    let ready = PusherConfig.isReady()
+    let projectId = PusherConfig.projectId()
 
     guard
       !trimmedNid.isEmpty,
       status == statusDelivered || status == statusOpened,
-      PusherConfig.isReady(),
-      let projectId = PusherConfig.projectId()
+      ready,
+      let projectId
     else {
+      PusherLog.w(
+        "receipt skip: nid='\(trimmedNid)' status=\(status) ready=\(ready) projectId=\(projectId ?? "nil")"
+      )
       completion?()
       return
     }
@@ -77,6 +85,7 @@ public enum PusherClient {
       "locale": Locale.current.identifier,
     ]
 
+    PusherLog.d("receipt enqueue nid=\(trimmedNid) status=\(status)")
     postAsync(path: "/\(projectId)/n/\(trimmedNid)", body: body, completion: completion)
   }
 
@@ -86,7 +95,9 @@ public enum PusherClient {
     status: Int,
     completion: (() -> Void)? = nil
   ) {
-    receipt(nid: extractNid(from: userInfo) ?? "", status: status, completion: completion)
+    let nid = extractNid(from: userInfo) ?? ""
+    PusherLog.d("receipt fromUserInfo nid=\(nid) status=\(status)")
+    receipt(nid: nid, status: status, completion: completion)
   }
 
   private static func extractNid(from userInfo: [AnyHashable: Any]) -> String? {
@@ -120,18 +131,20 @@ public enum PusherClient {
       do {
         try post(path: path, body: body)
       } catch {
-        // Receipts / hello must not crash the host or NSE.
+        PusherLog.e("POST \(path) failed: \(error)")
       }
     }
   }
 
   private static func post(path: String, body: [String: Any]) throws {
     guard let statsKey = PusherConfig.statsKey() else {
+      PusherLog.w("POST \(path) skip: statsKey null")
       return
     }
 
     let rawData = try JSONSerialization.data(withJSONObject: body, options: [])
     guard let raw = String(data: rawData, encoding: .utf8) else {
+      PusherLog.w("POST \(path) skip: body encode failed")
       return
     }
 
@@ -145,8 +158,11 @@ public enum PusherClient {
     )
 
     guard let url = URL(string: "\(PusherConfig.baseUrl())/v1\(path)") else {
+      PusherLog.w("POST \(path) skip: bad url")
       return
     }
+
+    PusherLog.d("POST start \(url) body=\(raw)")
 
     var request = URLRequest(url: url)
     request.httpMethod = "POST"
@@ -158,15 +174,23 @@ public enum PusherClient {
 
     let semaphore = DispatchSemaphore(value: 0)
     var requestError: Error?
+    var statusCode = -1
 
-    URLSession.shared.dataTask(with: request) { _, _, error in
+    URLSession.shared.dataTask(with: request) { _, response, error in
       requestError = error
+      statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
       semaphore.signal()
     }.resume()
 
     _ = semaphore.wait(timeout: .now() + 15)
     if let requestError {
       throw requestError
+    }
+
+    if statusCode < 200 || statusCode >= 300 {
+      PusherLog.w("HTTP \(statusCode) for \(path)")
+    } else {
+      PusherLog.d("HTTP \(statusCode) for \(path) ok")
     }
   }
 }

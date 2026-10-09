@@ -18,6 +18,9 @@ abstract final class Pusher {
   /// Opened receipt status.
   static const statusOpened = 2;
 
+  /// Log tag / prefix. Filter: `adb logcat | rg Pusher` or `-s Pusher`.
+  static const logTag = 'Pusher';
+
   static const _channel = MethodChannel('pusher');
 
   static String? _deviceId;
@@ -50,8 +53,11 @@ abstract final class Pusher {
     }
 
     if (_platform() == null) {
+      _log('init skip: unsupported platform');
       return;
     }
+
+    _log('init start projectId=$pid');
 
     final args = await _helloArgs(
       projectId: pid,
@@ -61,6 +67,7 @@ abstract final class Pusher {
     final id = await _channel.invokeMethod<String>('init', args);
     _deviceId = id;
     _initialized = true;
+    _log('init ok deviceId=$id');
     attach();
   }
 
@@ -73,16 +80,20 @@ abstract final class Pusher {
     }
 
     if (_attached) {
+      _log('attach skip: already attached');
       return;
     }
 
     _attached = true;
+    _log('attach listeners');
 
     FirebaseMessaging.onMessage.listen((message) {
+      _log('onMessage data=${message.data}');
       unawaited(_receiptFromMessage(message, statusDelivered));
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((message) {
+      _log('onMessageOpenedApp data=${message.data}');
       unawaited(_receiptFromMessage(message, statusOpened));
     });
 
@@ -94,7 +105,10 @@ abstract final class Pusher {
     final initial = await FirebaseMessaging.instance.getInitialMessage();
 
     if (initial != null) {
+      _log('getInitialMessage data=${initial.data}');
       await _receiptFromMessage(initial, statusOpened);
+    } else {
+      _log('getInitialMessage null');
     }
   }
 
@@ -103,17 +117,19 @@ abstract final class Pusher {
   /// Prefer native Android receiver / iOS NSE. Kept for hosts that still
   /// register `FirebaseMessaging.onBackgroundMessage`.
   static Future<void> onBackgroundMessage(RemoteMessage message) async {
+    _log('onBackgroundMessage data=${message.data}');
     await _receiptFromMessage(message, statusDelivered);
   }
 
   /// Posts device hello via native HTTP.
   static Future<void> hello({String? token}) async {
     if (_platform() == null) {
+      _log('hello skip: unsupported platform');
       return;
     }
 
     final args = await _helloArgs(token: token);
-
+    _log('hello invoke token=${args['token'] != null}');
     await _channel.invokeMethod<void>('hello', args);
   }
 
@@ -125,9 +141,11 @@ abstract final class Pusher {
         : await _fcmToken();
 
     if (value == null || value.isEmpty) {
+      _log('syncToken skip: empty token');
       return;
     }
 
+    _log('syncToken');
     await hello(token: value);
   }
 
@@ -139,17 +157,21 @@ abstract final class Pusher {
     final trimmed = nid.trim();
 
     if (trimmed.isEmpty) {
+      _log('receipt skip: empty nid');
       return;
     }
 
     if (status != statusDelivered && status != statusOpened) {
+      _log('receipt skip: bad status=$status');
       return;
     }
 
     if (_platform() == null) {
+      _log('receipt skip: unsupported platform');
       return;
     }
 
+    _log('receipt invoke nid=$trimmed status=$status');
     await _channel.invokeMethod<void>('receipt', {
       'nid': trimmed,
       'status': status,
@@ -165,12 +187,13 @@ abstract final class Pusher {
       final nid = message.data['nid']?.toString().trim();
 
       if (nid == null || nid.isEmpty) {
+        _log('receiptFromMessage skip: no nid keys=${message.data.keys}');
         return;
       }
 
       await receipt(nid: nid, status: status);
-    } on Object {
-      // Receipts must not crash the host app or background isolate.
+    } on Object catch (error) {
+      _log('receiptFromMessage error: $error');
     }
   }
 
@@ -183,6 +206,12 @@ abstract final class Pusher {
   }) async {
     final device = await _deviceInfo();
     final resolvedToken = token ?? await _fcmToken();
+
+    _log(
+      'helloArgs device=${device != null} '
+      'token=${resolvedToken != null} '
+      'appVersionCode=${device?.appVersionCode}',
+    );
 
     return {
       'projectId': ?projectId,
@@ -213,6 +242,7 @@ abstract final class Pusher {
       final appVersionCode = info.appBuild.trim();
 
       if (appVersionCode.isEmpty) {
+        _log('deviceInfo skip: empty appBuild');
         return null;
       }
 
@@ -226,7 +256,8 @@ abstract final class Pusher {
         osVersion: osVersion.isEmpty ? null : osVersion,
         appVersion: appVersion.isEmpty ? null : appVersion,
       );
-    } on Object {
+    } on Object catch (error) {
+      _log('deviceInfo error: $error');
       return null;
     }
   }
@@ -235,17 +266,20 @@ abstract final class Pusher {
   static Future<String?> _fcmToken() async {
     try {
       if (!await FirebaseMessaging.instance.isSupported()) {
+        _log('fcmToken skip: unsupported');
         return null;
       }
 
       final token = await FirebaseMessaging.instance.getToken();
 
       if (token == null || token.trim().isEmpty) {
+        _log('fcmToken skip: empty');
         return null;
       }
 
       return token.trim();
-    } on Object {
+    } on Object catch (error) {
+      _log('fcmToken error: $error');
       return null;
     }
   }
@@ -261,5 +295,9 @@ abstract final class Pusher {
     }
 
     return null;
+  }
+
+  static void _log(String message) {
+    debugPrint('$logTag $message');
   }
 }
