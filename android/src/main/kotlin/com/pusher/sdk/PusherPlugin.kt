@@ -97,6 +97,8 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
       appVersionCode = call.argument("appVersionCode"),
       osVersion = call.argument("osVersion"),
       appVersion = call.argument("appVersion"),
+      brand = call.argument("brand"),
+      model = call.argument("model"),
     )
   }
 }

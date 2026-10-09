@@ -27,6 +27,8 @@ object PusherClient {
     appVersionCode: String? = null,
     osVersion: String? = null,
     appVersion: String? = null,
+    brand: String? = null,
+    model: String? = null,
   ) {
     if (!PusherConfig.isReady(context)) {
       PusherLog.w("hello skip: config not ready")
@@ -48,6 +50,8 @@ object PusherClient {
       appVersionCode = appVersionCode.trim(),
       osVersion = osVersion,
       appVersion = appVersion,
+      brand = brand,
+      model = model,
     )
     PusherConfig.saveDeviceFields(context, fields)
 
@@ -60,9 +64,12 @@ object PusherClient {
     body.put("is_emulator", fields.isEmulator)
     body.put("debug_mode", fields.debugMode)
     body.put("app_version_code", fields.appVersionCode)
+    body.put("sdk_version", PusherConfig.SDK_VERSION)
     putOptional(body, "token", token)
     putOptional(body, "os_version", fields.osVersion)
     putOptional(body, "app_version", fields.appVersion)
+    putOptional(body, "brand", fields.brand)
+    putOptional(body, "model", fields.model)
 
     PusherLog.d("hello enqueue deviceId=$deviceId projectId=$projectId")
     postAsync(context, "/$projectId/hi", body)
@@ -98,8 +105,11 @@ object PusherClient {
     body.put("is_emulator", fields!!.isEmulator)
     body.put("debug_mode", fields.debugMode)
     body.put("app_version_code", fields.appVersionCode)
+    body.put("sdk_version", PusherConfig.SDK_VERSION)
     putOptional(body, "os_version", fields.osVersion)
     putOptional(body, "app_version", fields.appVersion)
+    putOptional(body, "brand", fields.brand)
+    putOptional(body, "model", fields.model)
 
     PusherLog.d("receipt enqueue nid=$trimmed status=$status deviceId=$deviceId")
     postAsync(context, "/$projectId/n/$trimmed", body, onDone)

@@ -82,7 +82,9 @@ public class PusherPlugin: NSObject, FlutterPlugin {
       debugMode: args["debugMode"] as? Bool,
       appVersionCode: stringArg(args, "appVersionCode"),
       osVersion: stringArg(args, "osVersion"),
-      appVersion: stringArg(args, "appVersion")
+      appVersion: stringArg(args, "appVersion"),
+      brand: stringArg(args, "brand"),
+      model: stringArg(args, "model")
     )
   }
 

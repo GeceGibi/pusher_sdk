@@ -1,0 +1,18 @@
+---
+description: Keep static SDK version strings in sync on every release bump
+alwaysApply: true
+---
+
+# SDK version sync
+
+`sdk_version` in hello/receipt bodies is a **static** string. Do not read `pubspec.yaml` at build time or generate version files.
+
+When the package version changes (release, bump, or `pubspec.yaml` `version:` edit), update **all** of these to the same value in the same change:
+
+1. `pubspec.yaml` → `version`
+2. `android/src/main/kotlin/com/pusher/sdk/PusherConfig.kt` → `SDK_VERSION`
+3. `ios/pusher/Sources/pusher/PusherConfig.swift` → `sdkVersion`
+4. `ios/pusher.podspec` → `s.version`
+5. `android/build.gradle.kts` → `version`
+
+Do not leave any of these stale. Do not reintroduce Gradle/podspec pubspec parsing for version.

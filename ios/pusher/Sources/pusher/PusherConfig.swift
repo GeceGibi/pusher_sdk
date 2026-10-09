@@ -7,19 +7,25 @@ public struct PusherDeviceFields {
   public let appVersionCode: String
   public let osVersion: String?
   public let appVersion: String?
+  public let brand: String?
+  public let model: String?
 
   public init(
     isEmulator: Bool,
     debugMode: Bool,
     appVersionCode: String,
     osVersion: String? = nil,
-    appVersion: String? = nil
+    appVersion: String? = nil,
+    brand: String? = nil,
+    model: String? = nil
   ) {
     self.isEmulator = isEmulator
     self.debugMode = debugMode
     self.appVersionCode = appVersionCode
     self.osVersion = osVersion
     self.appVersion = appVersion
+    self.brand = brand
+    self.model = model
   }
 }
 
@@ -33,8 +39,13 @@ public enum PusherConfig {
   public static let appVersionCodeKey = "pusher.app_version_code"
   public static let osVersionKey = "pusher.os_version"
   public static let appVersionKey = "pusher.app_version"
+  public static let brandKey = "pusher.brand"
+  public static let modelKey = "pusher.model"
   public static let enableLogsKey = "pusher.enable_logs"
   public static let defaultBaseUrl = "https://stats.pusher.tr"
+
+  /// Plugin version; update manually with pubspec.yaml / podspec.
+  public static let sdkVersion = "0.8.0"
 
   /// UserDefaults for the main app or the shared App Group.
   public static func defaults() -> UserDefaults {
@@ -117,6 +128,18 @@ public enum PusherConfig {
       store.removeObject(forKey: appVersionKey)
     }
 
+    if let brand = trimmed(fields.brand) {
+      store.set(brand, forKey: brandKey)
+    } else {
+      store.removeObject(forKey: brandKey)
+    }
+
+    if let model = trimmed(fields.model) {
+      store.set(model, forKey: modelKey)
+    } else {
+      store.removeObject(forKey: modelKey)
+    }
+
     store.synchronize()
   }
 
@@ -135,7 +158,9 @@ public enum PusherConfig {
       debugMode: store.bool(forKey: debugModeKey),
       appVersionCode: appVersionCode,
       osVersion: trimmed(store.string(forKey: osVersionKey)),
-      appVersion: trimmed(store.string(forKey: appVersionKey))
+      appVersion: trimmed(store.string(forKey: appVersionKey)),
+      brand: trimmed(store.string(forKey: brandKey)),
+      model: trimmed(store.string(forKey: modelKey))
     )
   }
 

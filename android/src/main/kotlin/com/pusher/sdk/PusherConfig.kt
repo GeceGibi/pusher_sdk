@@ -11,6 +11,8 @@ internal data class PusherDeviceFields(
   val appVersionCode: String,
   val osVersion: String? = null,
   val appVersion: String? = null,
+  val brand: String? = null,
+  val model: String? = null,
 )
 
 /// Persists project keys, install id, and last known device fields.
@@ -24,8 +26,13 @@ internal object PusherConfig {
   const val APP_VERSION_CODE = "pusher.app_version_code"
   const val OS_VERSION = "pusher.os_version"
   const val APP_VERSION = "pusher.app_version"
+  const val BRAND = "pusher.brand"
+  const val MODEL = "pusher.model"
   const val ENABLE_LOGS = "pusher.enable_logs"
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
+
+  /// Plugin version; update manually with pubspec.yaml / podspec.
+  const val SDK_VERSION = "0.8.0"
 
   fun prefs(context: Context): SharedPreferences {
     return context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -77,6 +84,20 @@ internal object PusherConfig {
       editor.putString(APP_VERSION, appVersion)
     }
 
+    val brand = fields.brand?.trim()
+    if (brand.isNullOrEmpty()) {
+      editor.remove(BRAND)
+    } else {
+      editor.putString(BRAND, brand)
+    }
+
+    val model = fields.model?.trim()
+    if (model.isNullOrEmpty()) {
+      editor.remove(MODEL)
+    } else {
+      editor.putString(MODEL, model)
+    }
+
     editor.apply()
   }
 
@@ -101,6 +122,8 @@ internal object PusherConfig {
       appVersionCode = appVersionCode,
       osVersion = store.getString(OS_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() },
       appVersion = store.getString(APP_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() },
+      brand = store.getString(BRAND, null)?.trim()?.takeIf { it.isNotEmpty() },
+      model = store.getString(MODEL, null)?.trim()?.takeIf { it.isNotEmpty() },
     )
   }
 

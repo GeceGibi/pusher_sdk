@@ -13,7 +13,9 @@ public enum PusherClient {
     debugMode: Bool? = nil,
     appVersionCode: String? = nil,
     osVersion: String? = nil,
-    appVersion: String? = nil
+    appVersion: String? = nil,
+    brand: String? = nil,
+    model: String? = nil
   ) {
     guard PusherConfig.isReady() else {
       PusherLog.w("hello skip: config not ready")
@@ -35,7 +37,9 @@ public enum PusherClient {
       debugMode: debugMode,
       appVersionCode: appVersionCode,
       osVersion: trimmed(osVersion),
-      appVersion: trimmed(appVersion)
+      appVersion: trimmed(appVersion),
+      brand: trimmed(brand),
+      model: trimmed(model)
     )
     PusherConfig.saveDeviceFields(fields)
 
@@ -46,6 +50,7 @@ public enum PusherClient {
       "is_emulator": fields.isEmulator,
       "debug_mode": fields.debugMode,
       "app_version_code": fields.appVersionCode,
+      "sdk_version": PusherConfig.sdkVersion,
     ]
 
     if let token = trimmed(token) {
@@ -58,6 +63,14 @@ public enum PusherClient {
 
     if let appVersion = fields.appVersion {
       body["app_version"] = appVersion
+    }
+
+    if let brand = fields.brand {
+      body["brand"] = brand
+    }
+
+    if let model = fields.model {
+      body["model"] = model
     }
 
     PusherLog.d("hello enqueue projectId=\(projectId)")
@@ -98,6 +111,7 @@ public enum PusherClient {
       "is_emulator": fields.isEmulator,
       "debug_mode": fields.debugMode,
       "app_version_code": fields.appVersionCode,
+      "sdk_version": PusherConfig.sdkVersion,
     ]
 
     if let osVersion = fields.osVersion {
@@ -106,6 +120,14 @@ public enum PusherClient {
 
     if let appVersion = fields.appVersion {
       body["app_version"] = appVersion
+    }
+
+    if let brand = fields.brand {
+      body["brand"] = brand
+    }
+
+    if let model = fields.model {
+      body["model"] = model
     }
 
     PusherLog.d("receipt enqueue nid=\(trimmedNid) status=\(status)")

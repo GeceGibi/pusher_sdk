@@ -225,6 +225,8 @@ abstract final class Pusher {
       'token': ?resolvedToken,
       'osVersion': ?device?.osVersion,
       'appVersion': ?device?.appVersion,
+      'brand': ?device?.brand,
+      'model': ?device?.model,
     };
   }
 
@@ -236,6 +238,8 @@ abstract final class Pusher {
       String appVersionCode,
       String? osVersion,
       String? appVersion,
+      String? brand,
+      String? model,
     })?
   >
   _deviceInfo() async {
@@ -250,6 +254,8 @@ abstract final class Pusher {
 
       final osVersion = info.osVersion.trim();
       final appVersion = info.appVersion.trim();
+      final brand = info.brand.trim();
+      final model = info.model.trim();
 
       return (
         isEmulator: info.isEmulator,
@@ -257,6 +263,8 @@ abstract final class Pusher {
         appVersionCode: appVersionCode,
         osVersion: osVersion.isEmpty ? null : osVersion,
         appVersion: appVersion.isEmpty ? null : appVersion,
+        brand: brand.isEmpty ? null : brand,
+        model: model.isEmpty ? null : model,
       );
     } on Object catch (error) {
       _logError('deviceInfo error: $error');
