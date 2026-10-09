@@ -1,21 +1,16 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:device_helpers/device_helpers.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
-import 'package:pusher_sdk/src/config_store.dart';
-import 'package:pusher_sdk/src/device_id.dart';
-import 'package:pusher_sdk/src/hmac_sign.dart';
+import 'package:flutter/services.dart';
 
 /// Flutter client for stats.pusher.tr.
 ///
-/// Call [init] once with project keys. It persists config, attaches foreground
-/// FCM listeners, and posts device hello. From the host background handler,
-/// optionally await [onBackgroundMessage] when you want delivered receipts
-/// (config is reloaded from SharedPreferences in that isolate).
+/// [init] writes keys to native storage, posts device hello via native HTTP,
+/// and attaches foreground FCM listeners. Delivered receipts in background
+/// come from native (Android C2DM receiver / iOS Notification Service Extension).
 abstract final class PusherSdk {
   /// Delivered receipt status.
   static const statusDelivered = 1;
@@ -23,32 +18,28 @@ abstract final class PusherSdk {
   /// Opened receipt status.
   static const statusOpened = 2;
 
-  static String? _projectId;
-  static String? _statsKey;
-  static String _baseUrl = 'https://stats.pusher.tr';
-  static bool _attached = false;
+  static const _channel = MethodChannel('pusher_sdk');
+
   static String? _deviceId;
+  static bool _attached = false;
+  static bool _initialized = false;
 
-  /// True when config and device id are loaded in this isolate.
-  static bool get isInitialized {
-    return _projectId != null && _statsKey != null && _deviceId != null;
-  }
+  /// True after a successful [init] in this isolate.
+  static bool get isInitialized => _initialized;
 
-  /// Stable install id from SharedPreferences.
+  /// Stable install id from native storage.
   static String? get deviceId => _deviceId;
 
-  /// Loads keys, attaches foreground listeners, and posts device hello.
+  /// Loads keys into native, posts hello, attaches foreground listeners.
   ///
-  /// Does not register an FCM background handler — call [onBackgroundMessage]
-  /// from the host handler when delivered receipts in background are wanted.
+  /// Host only passes [projectId] and [statsKey]. Stats host and iOS App Group
+  /// (`group.<mainBundleId>`) are fixed by the plugin — see README for NSE setup.
   static Future<void> init({
     required String projectId,
     required String statsKey,
-    String baseUrl = 'https://stats.pusher.tr',
   }) async {
     final pid = projectId.trim();
     final key = statsKey.trim();
-    final host = baseUrl.replaceAll(RegExp(r'/+$'), '');
 
     if (pid.isEmpty) {
       throw ArgumentError.value(projectId, 'projectId', 'required');
@@ -58,41 +49,26 @@ abstract final class PusherSdk {
       throw ArgumentError.value(statsKey, 'statsKey', 'required');
     }
 
-    final config = SdkConfig(projectId: pid, statsKey: key, baseUrl: host);
-    await ConfigStore.save(config);
-    await _apply(config);
-    attach();
-    await hello();
-  }
-
-  /// Applies [config] and loads the device id into this isolate.
-  static Future<void> _apply(SdkConfig config) async {
-    _projectId = config.projectId;
-    _statsKey = config.statsKey;
-    _baseUrl = config.baseUrl;
-    _deviceId = await DeviceIdStore.resolve();
-  }
-
-  /// Reloads config from SharedPreferences when this isolate is cold.
-  static Future<void> _ensureReady() async {
-    if (isInitialized) {
+    if (_platform() == null) {
       return;
     }
 
-    final config = await ConfigStore.load();
+    final args = await _helloArgs(
+      projectId: pid,
+      statsKey: key,
+    );
 
-    if (config == null) {
-      throw StateError('Call PusherSdk.init before use');
-    }
-
-    await _apply(config);
+    final id = await _channel.invokeMethod<String>('init', args);
+    _deviceId = id;
+    _initialized = true;
+    attach();
   }
 
   /// Foreground delivered + notification-open listeners.
   ///
   /// Called from [init]. Safe to call again; no-op if already attached.
   static void attach() {
-    if (!isInitialized) {
+    if (!_initialized) {
       throw StateError('Call PusherSdk.init before attach');
     }
 
@@ -122,59 +98,26 @@ abstract final class PusherSdk {
     }
   }
 
-  /// Optional host background handler hook. Posts delivered when `data.nid` is set.
+  /// Optional Dart fallback for delivered receipts.
   ///
-  /// ```dart
-  /// @pragma('vm:entry-point')
-  /// Future<void> onBg(RemoteMessage m) async {
-  ///   await Firebase.initializeApp();
-  ///   await PusherSdk.onBackgroundMessage(m);
-  /// }
-  /// ```
+  /// Prefer native Android receiver / iOS NSE. Kept for hosts that still
+  /// register `FirebaseMessaging.onBackgroundMessage`.
   static Future<void> onBackgroundMessage(RemoteMessage message) async {
     await _receiptFromMessage(message, statusDelivered);
   }
 
-  /// Posts device hello. Optional FCM [token] when available.
-  ///
-  /// Called from [init]. Requires [DeviceHelpers] fields for `is_emulator`,
-  /// `debug_mode`, and `app_version_code`; skips the request when they are
-  /// unavailable. Also sends `os_version` and `app_version` when present.
+  /// Posts device hello via native HTTP.
   static Future<void> hello({String? token}) async {
-    await _ensureReady();
-
-    final platform = _platform();
-
-    if (platform == null) {
+    if (_platform() == null) {
       return;
     }
 
-    final device = await _deviceInfo();
+    final args = await _helloArgs(token: token);
 
-    if (device == null) {
-      return;
-    }
-
-    final resolvedToken = token ?? await _fcmToken();
-    final body = <String, dynamic>{
-      'device_id': _deviceId,
-      'platform': platform,
-      'locale': Platform.localeName,
-      'is_emulator': device.isEmulator,
-      'debug_mode': device.debugMode,
-      'app_version_code': device.appVersionCode,
-      'token': ?resolvedToken,
-      'os_version': ?device.osVersion,
-      'app_version': ?device.appVersion,
-    };
-
-    await _post(path: '/$_projectId/hi', body: body);
+    await _channel.invokeMethod<void>('hello', args);
   }
 
   /// Upserts the FCM token on the stats device row (via [hello]).
-  ///
-  /// Optional. Pass [token], or the SDK reads the current FCM token.
-  /// Call again when the token refreshes so the panel can target this device.
   static Future<void> syncToken({String? token}) async {
     final trimmed = token?.trim();
     final value = (trimmed != null && trimmed.isNotEmpty)
@@ -188,13 +131,11 @@ abstract final class PusherSdk {
     await hello(token: value);
   }
 
-  /// Posts one receipt. [status] is [statusDelivered] or [statusOpened].
+  /// Posts one receipt via native HTTP.
   static Future<void> receipt({
     required String nid,
     required int status,
   }) async {
-    await _ensureReady();
-
     final trimmed = nid.trim();
 
     if (trimmed.isEmpty) {
@@ -205,20 +146,14 @@ abstract final class PusherSdk {
       return;
     }
 
-    final platform = _platform();
-
-    if (platform == null) {
+    if (_platform() == null) {
       return;
     }
 
-    final body = <String, dynamic>{
-      'device_id': _deviceId,
-      'platform': platform,
+    await _channel.invokeMethod<void>('receipt', {
+      'nid': trimmed,
       'status': status,
-      'locale': Platform.localeName,
-    };
-
-    await _post(path: '/$_projectId/n/$trimmed', body: body);
+    });
   }
 
   /// Delivered / opened from an FCM [message] when `data.nid` is present.
@@ -227,7 +162,6 @@ abstract final class PusherSdk {
     int status,
   ) async {
     try {
-      await _ensureReady();
       final nid = message.data['nid']?.toString().trim();
 
       if (nid == null || nid.isEmpty) {
@@ -240,40 +174,30 @@ abstract final class PusherSdk {
     }
   }
 
-  /// Signed JSON POST. Path is what the Dart stats process sees (no `/v1`).
-  static Future<void> _post({
-    required String path,
-    required Map<String, dynamic> body,
+  /// Builds hello/init args. Device fields are omitted when unavailable;
+  /// native skips hello in that case but still stores config.
+  static Future<Map<String, Object?>> _helloArgs({
+    String? projectId,
+    String? statsKey,
+    String? token,
   }) async {
-    final raw = jsonEncode(body);
-    final timestamp = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
-    final signature = HmacSign.signature(
-      method: 'POST',
-      pathAndQuery: path,
-      unixSeconds: timestamp,
-      body: raw,
-      key: _statsKey!,
-    );
+    final device = await _deviceInfo();
+    final resolvedToken = token ?? await _fcmToken();
 
-    final response = await http.post(
-      Uri.parse('$_baseUrl/v1$path'),
-      headers: {
-        'content-type': 'application/json',
-        'x-timestamp': '$timestamp',
-        'x-signature': signature,
-      },
-      body: raw,
-    );
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw HttpException(
-        'PusherSdk HTTP ${response.statusCode}: ${response.body}',
-        uri: response.request?.url,
-      );
-    }
+    return {
+      'projectId': ?projectId,
+      'statsKey': ?statsKey,
+      'locale': Platform.localeName,
+      'isEmulator': ?device?.isEmulator,
+      'debugMode': ?device?.debugMode,
+      'appVersionCode': ?device?.appVersionCode,
+      'token': ?resolvedToken,
+      'osVersion': ?device?.osVersion,
+      'appVersion': ?device?.appVersion,
+    };
   }
 
-  /// Required hello fields from [DeviceHelpers], or null on failure / empty build.
+  /// Required hello fields from [DeviceHelpers], or null on failure.
   static Future<
     ({
       bool isEmulator,

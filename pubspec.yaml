@@ -1,24 +1,19 @@
 name: pusher_sdk
 description: Device hello and notification receipt client for stats.pusher.tr.
 publish_to: none
-version: 0.1.1
+version: 0.2.0
 
 environment:
   sdk: '>=3.13.0 <4.0.0'
-  flutter: '>=3.32.0'
+  flutter: '>=3.44.0'
 
 dependencies:
-  crypto: ^3.0.6
   device_helpers:
     git:
       url: https://github.com/GeceGibi/device_helpers.git
-      
   firebase_messaging: ^16.0.0
   flutter:
     sdk: flutter
-  http: ^1.6.0
-  shared_preferences: ^2.5.3
-  uuid: ^4.5.1
 
 dev_dependencies:
   flutter_test:
@@ -26,4 +21,10 @@ dev_dependencies:
   very_good_analysis: ^11.0.0
 
 flutter:
-  uses-material-design: false
+  plugin:
+    platforms:
+      android:
+        package: com.pusher.pusher_sdk
+        pluginClass: PusherSdkPlugin
+      ios:
+        pluginClass: PusherSdkPlugin
