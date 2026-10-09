@@ -1,3 +1,11 @@
+## 0.10.0
+
+- Breaking (iOS NSE): replace CocoaPods `pusher/core` with pod `pusher_core`.
+  Subspecs under `pusher` produced two `pusher.framework` products and broke
+  archive. NSE: `pod 'pusher_core'` and `import pusher_core`. Runner unchanged
+  (`pusher` plugin pod via Flutter tooling).
+- Aligns CocoaPods with SPM (`pusher` + `pusher-core` products).
+
 ## 0.9.0
 
 - Sends `sdk_version` on hello and receipt bodies (static; bump with package version).
