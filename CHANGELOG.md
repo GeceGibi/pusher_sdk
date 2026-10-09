@@ -1,3 +1,8 @@
+## 0.9.0
+
+- Sends `sdk_version` on hello and receipt bodies (static; bump with package version).
+- Sends optional `brand` and `model` from `device_helpers` on hello and receipts.
+
 ## 0.8.0
 
 - Replaces int receipt statuses with `PusherNotificationStatus`

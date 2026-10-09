@@ -3,7 +3,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'pusher'
-  s.version          = '0.8.0'
+  s.version          = '0.9.0'
   s.summary          = 'Pusher mobile SDK (native hello / receipts)'
   s.description      = <<-DESC
 Native device hello and notification receipts for the Pusher Flutter plugin.
