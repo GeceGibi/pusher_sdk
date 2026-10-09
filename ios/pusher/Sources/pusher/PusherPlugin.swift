@@ -2,13 +2,13 @@ import Flutter
 import UIKit
 
 /// Flutter MethodChannel bridge into native config + HTTP.
-public class PusherSdkPlugin: NSObject, FlutterPlugin {
+public class PusherPlugin: NSObject, FlutterPlugin {
   public static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: "pusher",
       binaryMessenger: registrar.messenger()
     )
-    let instance = PusherSdkPlugin()
+    let instance = PusherPlugin()
     registrar.addMethodCallDelegate(instance, channel: channel)
   }
 

@@ -26,6 +26,6 @@ flutter:
     platforms:
       android:
         package: com.pusher.sdk
-        pluginClass: PusherSdkPlugin
+        pluginClass: PusherPlugin
       ios:
-        pluginClass: PusherSdkPlugin
+        pluginClass: PusherPlugin

@@ -9,8 +9,7 @@ dependency for OS/app fields on hello.
 Supports **Swift Package Manager** (`ios/pusher/Package.swift`) and CocoaPods
 (`ios/pusher.podspec`).
 
-Dart entrypoint: `import 'package:pusher/pusher_sdk.dart'` (also
-`package:pusher/pusher.dart`).
+Dart entrypoint: `import 'package:pusher/pusher.dart'`.
 
 ## Install
 
@@ -37,9 +36,9 @@ Stats host is fixed to `https://stats.pusher.tr` (not overridable).
 ## Quick start
 
 ```dart
-import 'package:pusher/pusher_sdk.dart';
+import 'package:pusher/pusher.dart';
 
-await PusherSdk.init(
+await Pusher.init(
   projectId: 'YOUR_PROJECT_ID',
   statsKey: 'YOUR_STATS_KEY',
 );
@@ -92,7 +91,7 @@ PusherStats.handleNotification(request.content.userInfo)
 | `onBackgroundMessage` | Optional Dart fallback only |
 
 ```dart
-unawaited(PusherSdk.syncToken(token: token));
+unawaited(Pusher.syncToken(token: token));
 ```
 
 ## Signing

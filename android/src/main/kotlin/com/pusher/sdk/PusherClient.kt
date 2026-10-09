@@ -14,7 +14,7 @@ object PusherClient {
   const val STATUS_DELIVERED = 1
   const val STATUS_OPENED = 2
 
-  private const val TAG = "PusherSdk"
+  private const val TAG = "Pusher"
   private val executor = Executors.newSingleThreadExecutor()
 
   /// Posts device hello. Optional fields come from Flutter [device_helpers].

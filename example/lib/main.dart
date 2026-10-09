@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:pusher/pusher_sdk.dart';
+import 'package:pusher/pusher.dart';
 
 void main() {
   runApp(const MyApp());
 }
 
-/// Minimal host shell. Real usage needs Firebase + panel keys via [PusherSdk.init].
+/// Minimal host shell. Real usage needs Firebase + panel keys via [Pusher.init].
 class MyApp extends StatelessWidget {
   /// Creates the example app.
   const MyApp({super.key});
@@ -16,8 +16,8 @@ class MyApp extends StatelessWidget {
       home: Scaffold(
         body: Center(
           child: Text(
-            'pusher — call PusherSdk.init(projectId:, statsKey:)\n'
-            'statusDelivered=${PusherSdk.statusDelivered}',
+            'pusher — call Pusher.init(projectId:, statsKey:)\n'
+            'statusDelivered=${Pusher.statusDelivered}',
             textAlign: .center,
           ),
         ),

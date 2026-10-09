@@ -11,7 +11,7 @@ import 'package:flutter/services.dart';
 /// [init] writes keys to native storage, posts device hello via native HTTP,
 /// and attaches foreground FCM listeners. Delivered receipts in background
 /// come from native (Android C2DM receiver / iOS Notification Service Extension).
-abstract final class PusherSdk {
+abstract final class Pusher {
   /// Delivered receipt status.
   static const statusDelivered = 1;
 
@@ -69,7 +69,7 @@ abstract final class PusherSdk {
   /// Called from [init]. Safe to call again; no-op if already attached.
   static void attach() {
     if (!_initialized) {
-      throw StateError('Call PusherSdk.init before attach');
+      throw StateError('Call Pusher.init before attach');
     }
 
     if (_attached) {

@@ -6,10 +6,10 @@ import java.util.UUID
 
 /// Persists project keys and stable install id for native hello / receipts.
 internal object PusherConfig {
-  private const val PREFS = "pusher_sdk"
-  const val PROJECT_ID = "pusher_sdk.project_id"
-  const val STATS_KEY = "pusher_sdk.stats_key"
-  const val DEVICE_ID = "pusher_sdk.device_id"
+  private const val PREFS = "pusher"
+  const val PROJECT_ID = "pusher.project_id"
+  const val STATS_KEY = "pusher.stats_key"
+  const val DEVICE_ID = "pusher.device_id"
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
 
   fun prefs(context: Context): SharedPreferences {

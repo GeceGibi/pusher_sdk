@@ -2,9 +2,9 @@ import Foundation
 
 /// Persists project keys and install id. Uses App Group when available (NSE).
 public enum PusherConfig {
-  public static let projectIdKey = "pusher_sdk.project_id"
-  public static let statsKeyKey = "pusher_sdk.stats_key"
-  public static let deviceIdKey = "pusher_sdk.device_id"
+  public static let projectIdKey = "pusher.project_id"
+  public static let statsKeyKey = "pusher.stats_key"
+  public static let deviceIdKey = "pusher.device_id"
   public static let defaultBaseUrl = "https://stats.pusher.tr"
 
   /// UserDefaults for the main app or the shared App Group.

@@ -8,7 +8,7 @@ import io.flutter.plugin.common.MethodChannel.MethodCallHandler
 import io.flutter.plugin.common.MethodChannel.Result
 
 /// Flutter MethodChannel bridge into native config + HTTP.
-class PusherSdkPlugin : FlutterPlugin, MethodCallHandler {
+class PusherPlugin : FlutterPlugin, MethodCallHandler {
   private lateinit var channel: MethodChannel
   private var context: Context? = null
 
