@@ -230,7 +230,7 @@
       "languageVersion": "3.4"
     },
     {
-      "name": "pusher_sdk",
+      "name": "pusher",
       "rootUri": "../",
       "packageUri": "lib/",
       "languageVersion": "3.13"

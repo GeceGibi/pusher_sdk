@@ -18,7 +18,7 @@ abstract final class PusherSdk {
   /// Opened receipt status.
   static const statusOpened = 2;
 
-  static const _channel = MethodChannel('pusher_sdk');
+  static const _channel = MethodChannel('pusher');
 
   static String? _deviceId;
   static bool _attached = false;

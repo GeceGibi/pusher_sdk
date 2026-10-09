@@ -1,4 +1,4 @@
-# pusher_sdk
+# pusher
 
 Flutter plugin for [stats.pusher.tr](https://stats.pusher.tr).
 
@@ -6,18 +6,24 @@ Flutter supplies **project id** and **stats key**. Native Android/iOS own
 HMAC signing and HTTP (`hello` / receipts). `device_helpers` stays a Dart
 dependency for OS/app fields on hello.
 
+Supports **Swift Package Manager** (`ios/pusher/Package.swift`) and CocoaPods
+(`ios/pusher.podspec`).
+
+Dart entrypoint: `import 'package:pusher/pusher_sdk.dart'` (also
+`package:pusher/pusher.dart`).
+
 ## Install
 
 ```yaml
 dependencies:
-  pusher_sdk:
+  pusher:
     git:
       url: https://github.com/GeceGibi/pusher_sdk.git
 ```
 
 Requires Firebase Messaging in the host (`Firebase.initializeApp` before use).
 
-Android package: `com.pusher.pusher_sdk`.
+Android package: `com.pusher.sdk`.
 
 ## Keys
 
@@ -31,6 +37,8 @@ Stats host is fixed to `https://stats.pusher.tr` (not overridable).
 ## Quick start
 
 ```dart
+import 'package:pusher/pusher_sdk.dart';
+
 await PusherSdk.init(
   projectId: 'YOUR_PROJECT_ID',
   statsKey: 'YOUR_STATS_KEY',
@@ -64,11 +72,11 @@ name — the plugin will not read a custom id.
 
 Then:
 
-1. Add the `pusher_sdk` pod to the extension target.
+1. Add the `pusher` pod to the extension target.
 2. Push payload must include `mutable-content: 1` and `data.nid`.
 
 ```swift
-import pusher_sdk
+import pusher
 
 // inside didReceive(_:withContentHandler:)
 PusherStats.handleNotification(request.content.userInfo)

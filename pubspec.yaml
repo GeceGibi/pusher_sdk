@@ -1,7 +1,8 @@
-name: pusher_sdk
+name: pusher
 description: Device hello and notification receipt client for stats.pusher.tr.
 publish_to: none
 version: 0.3.0
+homepage: https://github.com/GeceGibi/pusher_sdk
 
 environment:
   sdk: '>=3.13.0 <4.0.0'
@@ -24,7 +25,7 @@ flutter:
   plugin:
     platforms:
       android:
-        package: com.pusher.pusher_sdk
+        package: com.pusher.sdk
         pluginClass: PusherSdkPlugin
       ios:
         pluginClass: PusherSdkPlugin
