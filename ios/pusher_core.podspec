@@ -6,7 +6,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'pusher_core'
-  s.version          = '0.10.0'
+  s.version          = '1.0.0'
   s.summary          = 'Pusher native core (no Flutter; for NSE)'
   s.description      = <<-DESC
 Native hello / receipt helpers without Flutter.framework. Use this pod in a

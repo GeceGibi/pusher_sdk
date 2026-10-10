@@ -45,7 +45,7 @@ public enum PusherConfig {
   public static let defaultBaseUrl = "https://stats.pusher.tr"
 
   /// Plugin version; update manually with pubspec.yaml / podspec.
-  public static let sdkVersion = "0.10.0"
+  public static let sdkVersion = "1.0.0"
 
   /// UserDefaults for the main app or the shared App Group.
   public static func defaults() -> UserDefaults {
@@ -180,10 +180,10 @@ public enum PusherConfig {
   public static func resolveDeviceId() -> String {
     let store = defaults()
     if let existing = trimmed(store.string(forKey: deviceIdKey)) {
-      return existing
+      return existing.lowercased()
     }
 
-    let created = UUID().uuidString
+    let created = UUID().uuidString.lowercased()
     store.set(created, forKey: deviceIdKey)
     store.synchronize()
     return created
