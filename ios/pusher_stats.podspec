@@ -5,12 +5,12 @@
 # `pusher.framework` beside the Flutter plugin target (archive conflict).
 #
 Pod::Spec.new do |s|
-  s.name             = 'pusher_core'
-  # Swift import. Pod name stays pusher_core so the framework does not collide
-  # with Runner's pusher.framework.
+  s.name             = 'pusher_stats'
+  # Swift import is PusherStats. Pod name stays pusher_stats so the framework
+  # does not collide with Runner's pusher.framework.
   s.module_name      = 'PusherStats'
-  s.version          = '1.0.0'
-  s.summary          = 'Pusher native core (no Flutter; for NSE)'
+  s.version          = '1.0.1'
+  s.summary          = 'Pusher notification receipts (no Flutter; for NSE)'
   s.description      = <<-DESC
 Native hello / receipt helpers without Flutter.framework. Use this pod in a
 Notification Service Extension. Runner should use the `pusher` plugin pod.

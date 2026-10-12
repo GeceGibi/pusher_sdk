@@ -32,7 +32,7 @@ internal object PusherConfig {
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
 
   /// Plugin version; update manually with pubspec.yaml / podspec.
-  const val SDK_VERSION = "1.0.0"
+  const val SDK_VERSION = "1.0.1"
 
   fun prefs(context: Context): SharedPreferences {
     return context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.name             = 'pusher'
   # Swift import. Pod name stays pusher so the framework file stays pusher.framework.
   s.module_name      = 'Pusher'
-  s.version          = '1.0.0'
+  s.version          = '1.0.1'
   s.summary          = 'Pusher mobile SDK (native hello / receipts)'
   s.description      = <<-DESC
 Native device hello and notification receipts for the Pusher Flutter plugin.
@@ -23,7 +23,7 @@ Native device hello and notification receipts for the Pusher Flutter plugin.
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'
   }
 
-  # Runner module is Pusher. NSE depends on pod `pusher_core` (module PusherStats).
+  # Runner module is Pusher. NSE depends on pod `pusher_stats` (module PusherStats).
   # A `pusher/core` subspec collides on `pusher.framework` at archive.
   s.dependency 'Flutter'
   s.source_files = 'pusher/Sources/pusher/**/*.swift'

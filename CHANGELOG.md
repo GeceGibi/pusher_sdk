@@ -1,10 +1,10 @@
 ## 0.10.0
 
-- Breaking (iOS NSE): replace CocoaPods `pusher/core` with pod `pusher_core`.
+- Breaking (iOS NSE): replace CocoaPods `pusher/core` with pod `pusher_stats`.
   Subspecs under `pusher` produced two `pusher.framework` products and broke
-  archive. NSE: `pod 'pusher_core'` and `import pusher_core`. Runner unchanged
+  archive. NSE: `pod 'pusher_stats'` and `import PusherStats`. Runner unchanged
   (`pusher` plugin pod via Flutter tooling).
-- Aligns CocoaPods with SPM (`pusher` + `pusher-core` products).
+- Aligns CocoaPods with SPM (`Pusher` + `PusherStats` products).
 
 ## 0.9.0
 
@@ -30,9 +30,9 @@
 
 ## 0.5.0
 
-- Splits iOS into `pusher/core` (no Flutter; for NSE) and `pusher/flutter`
+- Splits iOS into `pusher_stats` (no Flutter; for NSE) and `pusher`
   (MethodChannel plugin for Runner).
-- SPM products: `pusher` + `pusher-core`.
+- SPM products: `Pusher` + `PusherStats`.
 
 ## 0.3.0
 

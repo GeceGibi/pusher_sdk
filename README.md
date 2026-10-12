@@ -77,7 +77,7 @@ name — the plugin will not read a custom id.
 
 Then:
 
-1. Add **`pusher_core`** to the extension target — no Flutter dependency, and a
+1. Add **`pusher_stats`** to the extension target — no Flutter dependency, and a
    distinct framework name so archive does not collide with Runner’s
    `pusher.framework`. Swift modules are `Pusher` (Runner) and `PusherStats`
    (extension).
@@ -85,7 +85,7 @@ Then:
 
 ```ruby
 # ios/Podfile — ImageNotification (NSE) only
-pod 'pusher_core', :path => File.join('.symlinks', 'plugins', 'pusher', 'ios')
+pod 'pusher_stats', :path => File.join('.symlinks', 'plugins', 'pusher', 'ios')
 ```
 
 ```swift
