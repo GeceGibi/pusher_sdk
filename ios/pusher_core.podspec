@@ -6,6 +6,9 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'pusher_core'
+  # Swift import. Pod name stays pusher_core so the framework does not collide
+  # with Runner's pusher.framework.
+  s.module_name      = 'PusherStats'
   s.version          = '1.0.0'
   s.summary          = 'Pusher native core (no Flutter; for NSE)'
   s.description      = <<-DESC

@@ -10,16 +10,16 @@ let package = Package(
     ],
     products: [
         // Flutter host (MethodChannel plugin).
-        .library(name: "pusher", targets: ["pusher"]),
+        .library(name: "Pusher", targets: ["Pusher"]),
         // NSE / native-only (no Flutter.framework).
-        .library(name: "pusher-core", targets: ["pusher_core"]),
+        .library(name: "PusherStats", targets: ["PusherStats"]),
     ],
     dependencies: [
         .package(name: "FlutterFramework", path: "../FlutterFramework")
     ],
     targets: [
         .target(
-            name: "pusher_core",
+            name: "PusherStats",
             path: "Sources/pusher",
             exclude: [
                 "PusherPlugin.swift",
@@ -27,9 +27,9 @@ let package = Package(
             ]
         ),
         .target(
-            name: "pusher",
+            name: "Pusher",
             dependencies: [
-                "pusher_core",
+                "PusherStats",
                 .product(name: "FlutterFramework", package: "FlutterFramework")
             ],
             path: "Sources/pusher",

@@ -141,13 +141,18 @@ internal object PusherConfig {
   }
 
   fun resolveDeviceId(context: Context): String {
-    val existing = prefs(context).getString(DEVICE_ID, null)?.trim()
+    val prefs = prefs(context)
+    val existing = prefs.getString(DEVICE_ID, null)?.trim()
     if (!existing.isNullOrEmpty()) {
-      return existing
+      val lower = existing.lowercase()
+      if (lower != existing) {
+        prefs.edit().putString(DEVICE_ID, lower).apply()
+      }
+      return lower
     }
 
-    val created = UUID.randomUUID().toString()
-    prefs(context).edit().putString(DEVICE_ID, created).apply()
+    val created = UUID.randomUUID().toString().lowercase()
+    prefs.edit().putString(DEVICE_ID, created).apply()
     return created
   }
 

@@ -48,13 +48,60 @@ public enum PusherConfig {
   public static let sdkVersion = "1.0.0"
 
   /// UserDefaults for the main app or the shared App Group.
+  ///
+  /// The main app copies an existing install id into the group. The extension
+  /// never mints one.
   public static func defaults() -> UserDefaults {
-    if let suiteName = resolveAppGroupId(),
-       let suite = UserDefaults(suiteName: suiteName) {
-      return suite
+    guard let suiteName = resolveAppGroupId(),
+          let suite = UserDefaults(suiteName: suiteName) else {
+      return .standard
     }
 
-    return .standard
+    if !isExtension {
+      copyMissingKeys(from: .standard, to: suite)
+    }
+
+    return suite
+  }
+
+  /// True inside the Notification Service Extension.
+  private static var isExtension: Bool {
+    Bundle.main.bundleURL.pathExtension == "appex"
+  }
+
+  /// Fills empty App Group keys from the main app's old store.
+  private static func copyMissingKeys(from source: UserDefaults, to suite: UserDefaults) {
+    let keys = [
+      projectIdKey,
+      statsKeyKey,
+      deviceIdKey,
+      isEmulatorKey,
+      debugModeKey,
+      appVersionCodeKey,
+      osVersionKey,
+      appVersionKey,
+      brandKey,
+      modelKey,
+      enableLogsKey,
+    ]
+    var changed = false
+
+    for key in keys {
+      if suite.object(forKey: key) != nil {
+        continue
+      }
+
+      guard let value = source.object(forKey: key) else {
+        continue
+      }
+
+      suite.set(value, forKey: key)
+      changed = true
+    }
+
+    if changed {
+      suite.synchronize()
+    }
   }
 
   /// App Group id is always `group.<mainBundleId>`.
@@ -180,7 +227,24 @@ public enum PusherConfig {
   public static func resolveDeviceId() -> String {
     let store = defaults()
     if let existing = trimmed(store.string(forKey: deviceIdKey)) {
-      return existing.lowercased()
+      let lower = existing.lowercased()
+      if lower != existing {
+        store.set(lower, forKey: deviceIdKey)
+        store.synchronize()
+      }
+      return lower
+    }
+
+    if isExtension {
+      return ""
+    }
+
+    if store !== UserDefaults.standard,
+       let legacy = trimmed(UserDefaults.standard.string(forKey: deviceIdKey)) {
+      let lower = legacy.lowercased()
+      store.set(lower, forKey: deviceIdKey)
+      store.synchronize()
+      return lower
     }
 
     let created = UUID().uuidString.lowercased()

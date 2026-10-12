@@ -103,8 +103,16 @@ public enum PusherClient {
       return
     }
 
+    let deviceId = PusherConfig.resolveDeviceId()
+
+    if deviceId.isEmpty {
+      PusherLog.w("receipt skip: device id missing")
+      completion?()
+      return
+    }
+
     var body: [String: Any] = [
-      "device_id": PusherConfig.resolveDeviceId(),
+      "device_id": deviceId,
       "platform": "ios",
       "status": status,
       "locale": Locale.current.identifier,

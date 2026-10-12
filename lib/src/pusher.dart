@@ -69,7 +69,7 @@ abstract final class Pusher {
     args['enableLogs'] = _logsEnabled;
 
     final id = await _channel.invokeMethod<String>('init', args);
-    _deviceId = id;
+    _deviceId = id?.toLowerCase();
     _initialized = true;
     _log('init ok deviceId=$id');
     attach();

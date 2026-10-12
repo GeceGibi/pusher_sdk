@@ -77,9 +77,10 @@ name — the plugin will not read a custom id.
 
 Then:
 
-1. Add **`pusher_core`** (not `pusher`) to the extension target — no Flutter
-   dependency, and a distinct framework name so archive does not collide with
-   Runner’s `pusher.framework`. Runner already gets `pusher` via Flutter tooling.
+1. Add **`pusher_core`** to the extension target — no Flutter dependency, and a
+   distinct framework name so archive does not collide with Runner’s
+   `pusher.framework`. Swift modules are `Pusher` (Runner) and `PusherStats`
+   (extension).
 2. Push payload must include `mutable-content: 1` and `data.nid`.
 
 ```ruby
@@ -88,7 +89,7 @@ pod 'pusher_core', :path => File.join('.symlinks', 'plugins', 'pusher', 'ios')
 ```
 
 ```swift
-import pusher_core
+import PusherStats
 
 // inside didReceive(_:withContentHandler:)
 PusherStats.handleNotification(request.content.userInfo)
