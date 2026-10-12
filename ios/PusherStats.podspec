@@ -1,26 +1,22 @@
 #
-# To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html.
-#
-# NSE / native-only. Separate pod name so CocoaPods does not emit a second
-# `pusher.framework` beside the Flutter plugin target (archive conflict).
+# NSE / native-only. Separate pod so CocoaPods does not emit a second
+# pusher.framework beside the Flutter plugin target (archive conflict).
 #
 Pod::Spec.new do |s|
-  s.name             = 'pusher_stats'
-  # Swift import is PusherStats. Pod name stays pusher_stats so the framework
-  # does not collide with Runner's pusher.framework.
-  s.module_name      = 'PusherStats'
-  s.version          = '1.0.1'
+  s.name             = 'PusherStats'
+  s.version          = '1.0.2'
   s.summary          = 'Pusher notification receipts (no Flutter; for NSE)'
   s.description      = <<-DESC
-Native hello / receipt helpers without Flutter.framework. Use this pod in a
-Notification Service Extension. Runner should use the `pusher` plugin pod.
+Native hello and receipt helpers without Flutter.framework. Use this pod in a
+Notification Service Extension. Runner should use the pusher plugin pod.
                        DESC
   s.homepage         = 'https://github.com/GeceGibi/pusher_sdk'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Pusher' => 'pusher@localhost' }
   s.source           = { :path => '.' }
-  s.platform = :ios, '15.0'
-  s.swift_version = '5.0'
+  s.platform         = :ios, '15.0'
+  s.swift_version    = '5.0'
+  s.module_name      = 'PusherStats'
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',

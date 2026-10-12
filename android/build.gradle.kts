@@ -1,5 +1,5 @@
 group = "com.pusher.sdk"
-version = "1.0.1"
+version = "1.0.2"
 
 buildscript {
     val kotlinVersion = "2.4.0"
