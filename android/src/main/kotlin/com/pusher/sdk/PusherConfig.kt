@@ -2,6 +2,8 @@ package com.pusher.sdk
 
 import android.content.Context
 import android.content.SharedPreferences
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
 
 /// Device fields required on every stats receipt (and hello).
@@ -14,6 +16,44 @@ internal data class PusherDeviceFields(
   val brand: String,
   val model: String,
 )
+
+/// A hello or receipt waiting to be re-sent. [at] is when it was first queued.
+internal data class PusherPending(
+  val kind: String,
+  val nid: String? = null,
+  val status: Int = 0,
+  val token: String? = null,
+  val locale: String? = null,
+  val at: Long = System.currentTimeMillis(),
+) {
+  /// Hello entries collapse to one. Receipts are unique per nid and status.
+  fun sameAs(other: PusherPending): Boolean {
+    if (kind != other.kind) return false
+    return kind == KIND_HELLO || (nid == other.nid && status == other.status)
+  }
+
+  fun toJson(): JSONObject = JSONObject()
+    .put("kind", kind)
+    .put("nid", nid)
+    .put("status", status)
+    .put("token", token)
+    .put("locale", locale)
+    .put("at", at)
+
+  companion object {
+    const val KIND_HELLO = "hello"
+    const val KIND_RECEIPT = "receipt"
+
+    fun fromJson(json: JSONObject) = PusherPending(
+      kind = json.getString("kind"),
+      nid = json.optString("nid").takeIf { it.isNotEmpty() && it != "null" },
+      status = json.optInt("status"),
+      token = json.optString("token").takeIf { it.isNotEmpty() && it != "null" },
+      locale = json.optString("locale").takeIf { it.isNotEmpty() && it != "null" },
+      at = json.optLong("at"),
+    )
+  }
+}
 
 /// Persists project keys, install id, and last known device fields.
 internal object PusherConfig {
@@ -29,7 +69,9 @@ internal object PusherConfig {
   const val BRAND = "pusher.brand"
   const val MODEL = "pusher.model"
   const val ENABLE_LOGS = "pusher.enable_logs"
-  const val PENDING_RECEIPTS = "pusher.pending_receipts"
+  const val PENDING_QUEUE = "pusher.pending_queue"
+  const val MAX_PENDING = 200
+  const val PENDING_MAX_AGE_MS = 48L * 60 * 60 * 1000
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
 
   /// Sourced from build.gradle.kts via BuildConfig.
@@ -97,33 +139,39 @@ internal object PusherConfig {
     )
   }
 
-  /// Saves an unposted receipt into local disk queue to retry later.
+  /// Adds [item] to the disk retry queue. Duplicates are replaced, oldest drop at the cap.
   @Synchronized
-  fun enqueuePendingReceipt(context: Context, nid: String, status: Int) {
-    val trimmed = nid.trim()
-    if (trimmed.isEmpty()) return
-    val prefs = prefs(context)
-    val set = prefs.getStringSet(PENDING_RECEIPTS, emptySet())?.toMutableSet() ?: mutableSetOf()
-    set.add("$trimmed:$status")
-    prefs.edit().putStringSet(PENDING_RECEIPTS, set).apply()
-    PusherLog.d("enqueued pending receipt: $trimmed status=$status total=${set.size}")
+  fun enqueuePending(context: Context, item: PusherPending) {
+    val list = readPending(context).filterNot { it.sameAs(item) }.toMutableList()
+    list.add(item)
+    while (list.size > MAX_PENDING) list.removeAt(0)
+    writePending(context, list)
+    PusherLog.d("enqueued pending ${item.kind} total=${list.size}")
   }
 
-  /// Returns and clears all pending receipts from disk queue.
+  /// Returns and clears the retry queue. Entries older than [PENDING_MAX_AGE_MS] are dropped.
   @Synchronized
-  fun drainPendingReceipts(context: Context): List<Pair<String, Int>> {
-    val prefs = prefs(context)
-    val set = prefs.getStringSet(PENDING_RECEIPTS, null)
-    if (set.isNullOrEmpty()) return emptyList()
-    prefs.edit().remove(PENDING_RECEIPTS).apply()
-    return set.mapNotNull { item ->
-      val parts = item.split(":")
-      if (parts.size == 2) {
-        val nid = parts[0]
-        val status = parts[1].toIntOrNull()
-        if (status != null) Pair(nid, status) else null
-      } else null
+  fun drainPending(context: Context): List<PusherPending> {
+    val now = System.currentTimeMillis()
+    val list = readPending(context).filter { now - it.at < PENDING_MAX_AGE_MS }
+    prefs(context).edit().remove(PENDING_QUEUE).apply()
+    return list
+  }
+
+  private fun readPending(context: Context): List<PusherPending> {
+    val raw = prefs(context).getString(PENDING_QUEUE, null) ?: return emptyList()
+    return try {
+      val array = JSONArray(raw)
+      (0 until array.length()).map { PusherPending.fromJson(array.getJSONObject(it)) }
+    } catch (_: Exception) {
+      emptyList()
     }
+  }
+
+  private fun writePending(context: Context, list: List<PusherPending>) {
+    val array = JSONArray()
+    list.forEach { array.put(it.toJson()) }
+    prefs(context).edit().putString(PENDING_QUEUE, array.toString()).apply()
   }
 
   fun projectId(context: Context): String? {

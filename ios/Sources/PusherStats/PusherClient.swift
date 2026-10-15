@@ -1,9 +1,24 @@
 import Foundation
 
 /// Native signed HTTP client for hello and notification receipts.
+///
+/// A request that fails on the network, with 408, 429 or 5xx, is saved to a disk
+/// queue and retried with backoff for up to 48 hours. Other 4xx answers are final.
 public enum PusherClient {
   public static let statusDelivered = 1
   public static let statusOpened = 2
+
+  private static let retryDelays: [TimeInterval] = [30, 120, 600, 1800, 3600]
+  private static let queue = DispatchQueue(label: "tr.pusher.sdk.client", qos: .utility)
+
+  /// Touched only on [queue].
+  private static var attempt = 0
+  private static var retryScheduled = false
+
+  private struct HttpFailure: Error {
+    let code: Int
+    let body: String
+  }
 
   /// Posts device hello. Optional fields come from Flutter device_helpers.
   public static func hello(
@@ -22,63 +37,30 @@ public enum PusherClient {
       return
     }
 
-    guard
-      let appVersionCode = trimmed(appVersionCode),
-      let isEmulator,
-      let debugMode,
-      let osVersion = trimmed(osVersion),
-      let appVersion = trimmed(appVersion),
-      let brand = trimmed(brand),
-      let model = trimmed(model),
-      let projectId = PusherConfig.projectId()
-    else {
-      PusherLog.w("hello skip: missing required device fields")
-      return
+    if let appVersionCode = trimmed(appVersionCode),
+       let isEmulator,
+       let debugMode,
+       let osVersion = trimmed(osVersion),
+       let appVersion = trimmed(appVersion),
+       let brand = trimmed(brand),
+       let model = trimmed(model) {
+      PusherConfig.saveDeviceFields(PusherDeviceFields(
+        isEmulator: isEmulator,
+        debugMode: debugMode,
+        appVersionCode: appVersionCode,
+        osVersion: osVersion,
+        appVersion: appVersion,
+        brand: brand,
+        model: model
+      ))
     }
 
-    let fields = PusherDeviceFields(
-      isEmulator: isEmulator,
-      debugMode: debugMode,
-      appVersionCode: appVersionCode,
-      osVersion: osVersion,
-      appVersion: appVersion,
-      brand: brand,
-      model: model
-    )
-    PusherConfig.saveDeviceFields(fields)
-
-    var body: [String: Any] = [
-      "clientId": PusherConfig.resolveDeviceId(),
-      "platform": "ios",
-      "locale": trimmed(locale) ?? Locale.current.identifier,
-      "isEmulator": fields.isEmulator,
-      "debugMode": fields.debugMode,
-      "appVersionCode": fields.appVersionCode,
-      "sdkVersion": PusherConfig.sdkVersion,
-      "osVersion": fields.osVersion,
-      "appVersion": fields.appVersion,
-      "brand": fields.brand,
-      "model": fields.model,
-    ]
-
-    if let token = trimmed(token) {
-      body["token"] = token
-    }
-
-    PusherLog.d("hello enqueue projectId=\(projectId)")
-    postAsync(path: "/\(projectId)/hi", body: body, completion: {
-      flushPendingReceipts()
-    })
+    submit(PusherPending(kind: .hello, token: trimmed(token), locale: trimmed(locale)))
   }
 
-  /// Flushes any pending receipts queued from offline or failed previous attempts.
-  public static func flushPendingReceipts() {
-    let pending = PusherConfig.drainPendingReceipts()
-    guard !pending.isEmpty else { return }
-    PusherLog.d("flushing \(pending.count) pending receipts")
-    for item in pending {
-      receipt(nid: item.nid, status: item.status)
-    }
+  /// Sends everything waiting in the retry queue.
+  public static func flushPending() {
+    queue.async { flush() }
   }
 
   /// Posts one receipt when [nid] is present. [completion] always fires once.
@@ -88,52 +70,23 @@ public enum PusherClient {
     completion: (() -> Void)? = nil
   ) {
     let trimmedNid = nid.trimmingCharacters(in: .whitespacesAndNewlines)
-    let ready = PusherConfig.isReady()
-    let projectId = PusherConfig.projectId()
 
-    guard
-      !trimmedNid.isEmpty,
-      status == statusDelivered || status == statusOpened,
-      ready,
-      let projectId
-    else {
-      PusherLog.w(
-        "receipt skip: nid='\(trimmedNid)' status=\(status) ready=\(ready) " +
-          "projectId=\(projectId ?? "nil")"
-      )
-      if !trimmedNid.isEmpty && (status == statusDelivered || status == statusOpened) {
-        PusherConfig.enqueuePendingReceipt(nid: trimmedNid, status: status)
-      }
+    guard !trimmedNid.isEmpty, status == statusDelivered || status == statusOpened else {
+      PusherLog.w("receipt skip: nid='\(trimmedNid)' status=\(status)")
       completion?()
       return
     }
 
-    var deviceId = PusherConfig.resolveDeviceId()
-    if deviceId.isEmpty {
-      deviceId = UUID().uuidString.lowercased()
+    let item = PusherPending(kind: .receipt, nid: trimmedNid, status: status)
+
+    guard PusherConfig.isReady() else {
+      PusherLog.w("receipt queued: config not ready nid=\(trimmedNid)")
+      PusherConfig.enqueuePending(item)
+      completion?()
+      return
     }
 
-    let fields = PusherConfig.deviceFields()
-
-    let body: [String: Any] = [
-      "clientId": deviceId,
-      "platform": "ios",
-      "status": status,
-      "locale": Locale.current.identifier,
-      "isEmulator": fields.isEmulator,
-      "debugMode": fields.debugMode,
-      "appVersionCode": fields.appVersionCode,
-      "sdkVersion": PusherConfig.sdkVersion,
-      "osVersion": fields.osVersion,
-      "appVersion": fields.appVersion,
-      "brand": fields.brand,
-      "model": fields.model,
-    ]
-
-    PusherLog.d("receipt enqueue nid=\(trimmedNid) status=\(status)")
-    postAsync(path: "/\(projectId)/n/\(trimmedNid)", body: body, completion: completion, onError: {
-      PusherConfig.enqueuePendingReceipt(nid: trimmedNid, status: status)
-    })
+    submit(item, completion: completion)
   }
 
   /// Delivered / opened from a notification userInfo map when `nid` is set.
@@ -168,27 +121,94 @@ public enum PusherClient {
     return trimmed.isEmpty ? nil : trimmed
   }
 
-  private static func postAsync(
-    path: String,
-    body: [String: Any],
-    completion: (() -> Void)? = nil,
-    onError: (() -> Void)? = nil
-  ) {
-    DispatchQueue.global(qos: .utility).async {
+  private static func submit(_ item: PusherPending, completion: (() -> Void)? = nil) {
+    queue.async {
       defer { completion?() }
-      do {
-        try post(path: path, body: body)
-      } catch {
-        PusherLog.e("POST \(path) failed: \(error)")
-        onError?()
+      if send(item) {
+        flush()
       }
     }
   }
 
-  private static func post(path: String, body: [String: Any]) throws {
-    guard let statsKey = PusherConfig.statsKey() else {
-      PusherLog.w("POST \(path) skip: statsKey null")
-      throw NSError(domain: "Pusher", code: -1, userInfo: [NSLocalizedDescriptionKey: "statsKey null"])
+  /// Sends the queue in order. Stops at the first retryable failure.
+  private static func flush() {
+    let items = PusherConfig.drainPending()
+    guard !items.isEmpty else { return }
+    PusherLog.d("flushing \(items.count) pending")
+
+    for (index, item) in items.enumerated() {
+      if !send(item) {
+        items.dropFirst(index + 1).forEach { PusherConfig.enqueuePending($0) }
+        return
+      }
+    }
+  }
+
+  /// True when the item is done (sent or rejected for good). False when queued for retry.
+  private static func send(_ item: PusherPending) -> Bool {
+    do {
+      try post(item)
+      attempt = 0
+      return true
+    } catch let error as HttpFailure {
+      PusherLog.e("\(item.kind.rawValue) failed: HTTP \(error.code) \(error.body)")
+      let retryable = error.code == 408 || error.code == 429 || error.code >= 500
+      if !retryable {
+        return true
+      }
+    } catch {
+      PusherLog.e("\(item.kind.rawValue) failed: \(error)")
+    }
+
+    PusherConfig.enqueuePending(item)
+    scheduleRetry()
+    return false
+  }
+
+  private static func scheduleRetry() {
+    guard !retryScheduled else { return }
+    retryScheduled = true
+    let delay = retryDelays[min(attempt, retryDelays.count - 1)]
+    attempt += 1
+    PusherLog.d("retry in \(Int(delay))s")
+    queue.asyncAfter(deadline: .now() + delay) {
+      retryScheduled = false
+      flush()
+    }
+  }
+
+  private static func post(_ item: PusherPending) throws {
+    guard let projectId = PusherConfig.projectId(), let statsKey = PusherConfig.statsKey() else {
+      throw NSError(domain: "Pusher", code: -1, userInfo: [NSLocalizedDescriptionKey: "config missing"])
+    }
+
+    var deviceId = PusherConfig.resolveDeviceId()
+    if deviceId.isEmpty {
+      deviceId = UUID().uuidString.lowercased()
+    }
+
+    let fields = PusherConfig.deviceFields()
+    var body: [String: Any] = [
+      "clientId": deviceId,
+      "platform": "ios",
+      "locale": item.locale ?? Locale.current.identifier,
+      "isEmulator": fields.isEmulator,
+      "debugMode": fields.debugMode,
+      "appVersionCode": fields.appVersionCode,
+      "sdkVersion": PusherConfig.sdkVersion,
+      "osVersion": fields.osVersion,
+      "appVersion": fields.appVersion,
+      "brand": fields.brand,
+      "model": fields.model,
+    ]
+
+    let path: String
+    if item.kind == .hello {
+      if let token = item.token { body["token"] = token }
+      path = "/\(projectId)/hi"
+    } else {
+      body["status"] = item.status
+      path = "/\(projectId)/n/\(item.nid ?? "")"
     }
 
     let rawData = try JSONSerialization.data(withJSONObject: body, options: [])
@@ -242,7 +262,7 @@ public enum PusherClient {
 
     PusherLog.d("POST response path=\(path) http=\(statusCode) body=\(responseBody)")
     if statusCode < 200 || statusCode > 299 {
-      throw NSError(domain: "Pusher", code: statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(statusCode): \(responseBody)"])
+      throw HttpFailure(code: statusCode, body: responseBody)
     }
   }
 }

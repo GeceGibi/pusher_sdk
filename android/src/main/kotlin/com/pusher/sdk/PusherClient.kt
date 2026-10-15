@@ -3,19 +3,32 @@ package com.pusher.sdk
 import android.content.Context
 import org.json.JSONObject
 import java.io.BufferedReader
+import java.io.IOException
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 /// Native signed HTTP client for hello and notification receipts.
+///
+/// A request that fails on the network, with 408, 429 or 5xx, is saved to a disk
+/// queue and retried with backoff for up to 48 hours. Other 4xx answers are final.
 object PusherClient {
   const val STATUS_DELIVERED = 1
   const val STATUS_OPENED = 2
 
-  private val executor = Executors.newSingleThreadExecutor()
+  private val retryDelaysSeconds = longArrayOf(30, 120, 600, 1800, 3600)
+
+  private class HttpFailure(val code: Int, message: String) : IOException(message)
+
+  private val executor = Executors.newSingleThreadScheduledExecutor()
+
+  /// Touched only on [executor].
+  private var attempt = 0
+  private var retryScheduled = false
 
   /// Posts device hello. Optional fields come from Flutter [device_helpers].
   fun hello(
@@ -35,102 +48,62 @@ object PusherClient {
       return
     }
 
-    if (appVersionCode.isNullOrBlank() ||
-      isEmulator == null ||
-      debugMode == null ||
-      osVersion.isNullOrBlank() ||
-      appVersion.isNullOrBlank() ||
-      brand.isNullOrBlank() ||
-      model.isNullOrBlank()
+    if (isEmulator != null &&
+      debugMode != null &&
+      !appVersionCode.isNullOrBlank() &&
+      !osVersion.isNullOrBlank() &&
+      !appVersion.isNullOrBlank() &&
+      !brand.isNullOrBlank() &&
+      !model.isNullOrBlank()
     ) {
-      PusherLog.w("hello skip: missing required device fields")
-      return
+      PusherConfig.saveDeviceFields(
+        context,
+        PusherDeviceFields(
+          isEmulator = isEmulator,
+          debugMode = debugMode,
+          appVersionCode = appVersionCode.trim(),
+          osVersion = osVersion.trim(),
+          appVersion = appVersion.trim(),
+          brand = brand.trim(),
+          model = model.trim(),
+        ),
+      )
     }
 
-    val fields = PusherDeviceFields(
-      isEmulator = isEmulator,
-      debugMode = debugMode,
-      appVersionCode = appVersionCode.trim(),
-      osVersion = osVersion.trim(),
-      appVersion = appVersion.trim(),
-      brand = brand.trim(),
-      model = model.trim(),
+    val item = PusherPending(
+      kind = PusherPending.KIND_HELLO,
+      token = token?.trim()?.takeIf { it.isNotEmpty() },
+      locale = locale?.trim()?.takeIf { it.isNotEmpty() },
     )
-    PusherConfig.saveDeviceFields(context, fields)
-
-    val projectId = PusherConfig.projectId(context) ?: return
-    val deviceId = PusherConfig.resolveDeviceId(context)
-    val body = JSONObject()
-    body.put("clientId", deviceId)
-    body.put("platform", "android")
-    body.put("locale", locale?.takeIf { it.isNotBlank() } ?: Locale.getDefault().toString())
-    body.put("isEmulator", fields.isEmulator)
-    body.put("debugMode", fields.debugMode)
-    body.put("appVersionCode", fields.appVersionCode)
-    body.put("sdkVersion", PusherConfig.SDK_VERSION)
-    body.put("osVersion", fields.osVersion)
-    body.put("appVersion", fields.appVersion)
-    body.put("brand", fields.brand)
-    body.put("model", fields.model)
-    putOptional(body, "token", token)
-
-    PusherLog.d("hello enqueue deviceId=$deviceId projectId=$projectId")
-    postAsync(context, "/$projectId/hi", body) {
-      flushPendingReceipts(context)
-    }
+    submit(context, item)
   }
 
-  /// Flushes any pending receipts queued from offline or failed previous attempts.
-  fun flushPendingReceipts(context: Context) {
-    val pending = PusherConfig.drainPendingReceipts(context)
-    if (pending.isEmpty()) return
-    PusherLog.d("flushing ${pending.size} pending receipts")
-    for ((nid, status) in pending) {
-      receipt(context, nid, status)
-    }
+  /// Sends everything waiting in the retry queue.
+  fun flushPending(context: Context) {
+    val app = context.applicationContext
+    executor.execute { flush(app) }
   }
 
   /// Posts one receipt when [nid] is present. [onDone] always fires once.
   fun receipt(context: Context, nid: String, status: Int, onDone: (() -> Unit)? = null) {
     val trimmed = nid.trim()
-    val projectId = PusherConfig.projectId(context)
-    val ready = PusherConfig.isReady(context)
-    val valid = trimmed.isNotEmpty() &&
-      (status == STATUS_DELIVERED || status == STATUS_OPENED) &&
-      ready &&
-      projectId != null
 
-    if (!valid) {
-      PusherLog.w(
-        "receipt skip: nid='$trimmed' status=$status ready=$ready projectId=$projectId",
-      )
-      if (trimmed.isNotEmpty() && (status == STATUS_DELIVERED || status == STATUS_OPENED)) {
-        PusherConfig.enqueuePendingReceipt(context, trimmed, status)
-      }
+    if (trimmed.isEmpty() || (status != STATUS_DELIVERED && status != STATUS_OPENED)) {
+      PusherLog.w("receipt skip: nid='$trimmed' status=$status")
       onDone?.invoke()
       return
     }
 
-    val fields = PusherConfig.deviceFields(context)
-    val deviceId = PusherConfig.resolveDeviceId(context)
-    val body = JSONObject()
-    body.put("clientId", deviceId)
-    body.put("platform", "android")
-    body.put("status", status)
-    body.put("locale", Locale.getDefault().toString())
-    body.put("isEmulator", fields.isEmulator)
-    body.put("debugMode", fields.debugMode)
-    body.put("appVersionCode", fields.appVersionCode)
-    body.put("sdkVersion", PusherConfig.SDK_VERSION)
-    body.put("osVersion", fields.osVersion)
-    body.put("appVersion", fields.appVersion)
-    body.put("brand", fields.brand)
-    body.put("model", fields.model)
+    val item = PusherPending(PusherPending.KIND_RECEIPT, nid = trimmed, status = status)
 
-    PusherLog.d("receipt enqueue nid=$trimmed status=$status deviceId=$deviceId")
-    postAsync(context, "/$projectId/n/$trimmed", body, onDone, onError = {
-      PusherConfig.enqueuePendingReceipt(context, trimmed, status)
-    })
+    if (!PusherConfig.isReady(context)) {
+      PusherLog.w("receipt queued: config not ready nid=$trimmed")
+      PusherConfig.enqueuePending(context, item)
+      onDone?.invoke()
+      return
+    }
+
+    submit(context, item, onDone)
   }
 
   /// Delivered receipt from FCM data map when `nid` is set.
@@ -145,40 +118,88 @@ object PusherClient {
     receipt(context, nid, status, onDone)
   }
 
-  private fun putOptional(body: JSONObject, key: String, value: String?) {
-    val trimmed = value?.trim()
-    if (!trimmed.isNullOrEmpty()) {
-      body.put(key, trimmed)
-    }
-  }
-
-  private fun postAsync(
-    context: Context,
-    path: String,
-    body: JSONObject,
-    onDone: (() -> Unit)? = null,
-    onError: (() -> Unit)? = null,
-  ) {
-    val appContext = context.applicationContext
+  private fun submit(context: Context, item: PusherPending, onDone: (() -> Unit)? = null) {
+    val app = context.applicationContext
     executor.execute {
-      var success = false
       try {
-        post(appContext, path, body)
-        success = true
-      } catch (error: Exception) {
-        PusherLog.e("POST $path failed: ${error.message}", error)
-        onError?.invoke()
+        if (send(app, item)) flush(app)
       } finally {
         onDone?.invoke()
       }
     }
   }
 
-  private fun post(context: Context, path: String, body: JSONObject) {
+  /// Sends the queue in order. Stops at the first retryable failure.
+  private fun flush(app: Context) {
+    val items = PusherConfig.drainPending(app)
+    if (items.isEmpty()) return
+    PusherLog.d("flushing ${items.size} pending")
+
+    for ((index, item) in items.withIndex()) {
+      if (!send(app, item)) {
+        items.drop(index + 1).forEach { PusherConfig.enqueuePending(app, it) }
+        return
+      }
+    }
+  }
+
+  /// True when the item is done (sent or rejected for good). False when queued for retry.
+  private fun send(app: Context, item: PusherPending): Boolean {
+    try {
+      post(app, item)
+      attempt = 0
+      return true
+    } catch (error: HttpFailure) {
+      val retryable = error.code == 408 || error.code == 429 || error.code >= 500
+      PusherLog.e("${item.kind} failed: ${error.message}", error)
+      if (!retryable) return true
+    } catch (error: Exception) {
+      PusherLog.e("${item.kind} failed: ${error.message}", error)
+    }
+
+    PusherConfig.enqueuePending(app, item)
+    scheduleRetry(app)
+    return false
+  }
+
+  private fun scheduleRetry(app: Context) {
+    if (retryScheduled) return
+    retryScheduled = true
+    val delay = retryDelaysSeconds[minOf(attempt, retryDelaysSeconds.lastIndex)]
+    attempt++
+    PusherLog.d("retry in ${delay}s")
+    executor.schedule({
+      retryScheduled = false
+      flush(app)
+    }, delay, TimeUnit.SECONDS)
+  }
+
+  private fun post(context: Context, item: PusherPending) {
+    val projectId = PusherConfig.projectId(context)
+      ?: throw IllegalStateException("projectId is null")
     val statsKey = PusherConfig.statsKey(context)
-    if (statsKey == null) {
-      PusherLog.w("POST $path skip: statsKey null")
-      throw IllegalStateException("statsKey is null")
+      ?: throw IllegalStateException("statsKey is null")
+
+    val fields = PusherConfig.deviceFields(context)
+    val body = JSONObject()
+      .put("clientId", PusherConfig.resolveDeviceId(context))
+      .put("platform", "android")
+      .put("locale", item.locale ?: Locale.getDefault().toString())
+      .put("isEmulator", fields.isEmulator)
+      .put("debugMode", fields.debugMode)
+      .put("appVersionCode", fields.appVersionCode)
+      .put("sdkVersion", PusherConfig.SDK_VERSION)
+      .put("osVersion", fields.osVersion)
+      .put("appVersion", fields.appVersion)
+      .put("brand", fields.brand)
+      .put("model", fields.model)
+
+    val path = if (item.kind == PusherPending.KIND_HELLO) {
+      item.token?.let { body.put("token", it) }
+      "/$projectId/hi"
+    } else {
+      body.put("status", item.status)
+      "/$projectId/n/${item.nid}"
     }
 
     val raw = body.toString()
@@ -205,34 +226,23 @@ object PusherClient {
     }
 
     try {
-      OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { writer ->
-        writer.write(raw)
-      }
+      OutputStreamWriter(connection.outputStream, Charsets.UTF_8).use { it.write(raw) }
 
       val code = connection.responseCode
-      val responseBody = readBody(connection)
+      val responseBody = readBody(connection, code)
       PusherLog.d("POST response path=$path http=$code body=$responseBody")
       if (code !in 200..299) {
-        throw java.io.IOException("HTTP $code: $responseBody")
+        throw HttpFailure(code, "HTTP $code: $responseBody")
       }
     } finally {
       connection.disconnect()
     }
   }
 
-  private fun readBody(connection: HttpURLConnection): String {
-    val stream = if (connection.responseCode >= 400) {
-      connection.errorStream
-    } else {
-      connection.inputStream
-    }
-
-    if (stream == null) {
-      return ""
-    }
-
-    return BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-      reader.readText()
-    }
+  private fun readBody(connection: HttpURLConnection, code: Int): String {
+    val stream = if (code >= 400) connection.errorStream else connection.inputStream
+    return stream?.let {
+      BufferedReader(InputStreamReader(it, Charsets.UTF_8)).use { reader -> reader.readText() }
+    }.orEmpty()
   }
 }

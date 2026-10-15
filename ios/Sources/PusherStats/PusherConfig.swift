@@ -156,7 +156,10 @@ public enum PusherConfig {
     PusherLog.enabled = defaults().bool(forKey: enableLogsKey)
   }
 
-  public static let pendingReceiptsKey = "pusher.pending_receipts"
+  public static let pendingQueueKey = "pusher.pending_queue"
+  private static let maxPending = 200
+  private static let pendingMaxAge: TimeInterval = 48 * 60 * 60
+  private static let pendingLock = NSLock()
 
   /// Persists device fields from hello so NSE receipts can reuse them.
   public static func saveDeviceFields(_ fields: PusherDeviceFields) {
@@ -191,34 +194,43 @@ public enum PusherConfig {
     )
   }
 
-  /// Saves an unposted receipt into local disk queue to retry later.
-  public static func enqueuePendingReceipt(nid: String, status: Int) {
-    let trimmedNid = nid.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmedNid.isEmpty else { return }
-    let store = defaults()
-    var current = store.stringArray(forKey: pendingReceiptsKey) ?? []
-    let entry = "\(trimmedNid):\(status)"
-    if !current.contains(entry) {
-      current.append(entry)
-      store.set(current, forKey: pendingReceiptsKey)
-      store.synchronize()
-      PusherLog.d("enqueued pending receipt: \(trimmedNid) status=\(status) total=\(current.count)")
+  /// Adds [item] to the disk retry queue. Duplicates are replaced, oldest drop at the cap.
+  public static func enqueuePending(_ item: PusherPending) {
+    pendingLock.lock()
+    defer { pendingLock.unlock() }
+    var list = readPending().filter { !$0.isSame(as: item) }
+    list.append(item)
+    if list.count > maxPending {
+      list.removeFirst(list.count - maxPending)
     }
+    writePending(list)
+    PusherLog.d("enqueued pending \(item.kind.rawValue) total=\(list.count)")
   }
 
-  /// Returns and clears all pending receipts from disk queue.
-  public static func drainPendingReceipts() -> [(nid: String, status: Int)] {
+  /// Returns and clears the retry queue. Entries older than 48 hours are dropped.
+  public static func drainPending() -> [PusherPending] {
+    pendingLock.lock()
+    defer { pendingLock.unlock() }
+    let cutoff = Date().addingTimeInterval(-pendingMaxAge)
+    let list = readPending().filter { $0.at > cutoff }
     let store = defaults()
-    guard let list = store.stringArray(forKey: pendingReceiptsKey), !list.isEmpty else {
+    store.removeObject(forKey: pendingQueueKey)
+    store.synchronize()
+    return list
+  }
+
+  private static func readPending() -> [PusherPending] {
+    guard let data = defaults().data(forKey: pendingQueueKey),
+          let list = try? JSONDecoder().decode([PusherPending].self, from: data) else {
       return []
     }
-    store.removeObject(forKey: pendingReceiptsKey)
+    return list
+  }
+
+  private static func writePending(_ list: [PusherPending]) {
+    let store = defaults()
+    store.set(try? JSONEncoder().encode(list), forKey: pendingQueueKey)
     store.synchronize()
-    return list.compactMap { item in
-      let parts = item.split(separator: ":")
-      guard parts.count == 2, let status = Int(parts[1]) else { return nil }
-      return (nid: String(parts[0]), status: status)
-    }
   }
 
   public static func projectId() -> String? {
@@ -274,5 +286,26 @@ public enum PusherConfig {
 
     let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
     return trimmed.isEmpty ? nil : trimmed
+  }
+}
+
+/// A hello or receipt waiting to be re-sent. `at` is when it was first queued.
+public struct PusherPending: Codable {
+  public enum Kind: String, Codable {
+    case hello
+    case receipt
+  }
+
+  public let kind: Kind
+  public var nid: String?
+  public var status: Int = 0
+  public var token: String?
+  public var locale: String?
+  public var at = Date()
+
+  /// Hello entries collapse to one. Receipts are unique per nid and status.
+  func isSame(as other: PusherPending) -> Bool {
+    guard kind == other.kind else { return false }
+    return kind == .hello || (nid == other.nid && status == other.status)
   }
 }
