@@ -1,0 +1,28 @@
+PODS:
+  - Flutter (1.0.0)
+  - pusher (1.0.2):
+    - Flutter
+    - PusherStats (~> 1.0.2)
+  - PusherStats (1.0.2)
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - pusher (from `.symlinks/plugins/pusher/ios`)
+  - PusherStats (from `../../../ios`)
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  pusher:
+    :path: ".symlinks/plugins/pusher/ios"
+  PusherStats:
+    :path: "../../../ios"
+
+SPEC CHECKSUMS:
+  Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
+  pusher: 8361fb3cdf65b5da086d88f159ed1f376a76fa85
+  PusherStats: 467a2cf754cb1c10bc9f116f1b309296cc50d376
+
+PODFILE CHECKSUM: c4ca177ed8b470fac1fed477009770fcbcbe7977
+
+COCOAPODS: 1.16.2

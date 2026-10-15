@@ -36,6 +36,17 @@ android {
     defaultConfig {
         minSdk = 24
     }
+
+    sourceSets {
+        getByName("main") {
+            val nativeSrc = file("../../android/src/main/kotlin")
+            if (nativeSrc.exists()) {
+                java.srcDirs("src/main/kotlin", nativeSrc)
+            } else {
+                java.srcDirs("src/main/kotlin")
+            }
+        }
+    }
 }
 
 kotlin {
@@ -45,6 +56,5 @@ kotlin {
 }
 
 dependencies {
-    compileOnly("io.flutter:flutter_embedding_release:1.0.0-cb4eb6ab455711dbca71a3e62fb7733dae55be0e")
-    implementation(project(":android"))
+    implementation("com.google.firebase:firebase-messaging:24.1.0")
 }

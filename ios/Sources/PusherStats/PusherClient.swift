@@ -209,7 +209,7 @@ public enum PusherClient {
       method: "POST",
       pathAndQuery: path,
       unixSeconds: timestamp,
-      body = raw,
+      body: raw,
       key: statsKey
     )
 
