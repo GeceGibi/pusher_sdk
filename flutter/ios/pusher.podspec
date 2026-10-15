@@ -1,3 +1,6 @@
+#
+# To learn more about a Podspec see http://guides.cocoapods.org/syntax/podspec.html.
+#
 Pod::Spec.new do |s|
   s.name             = 'pusher'
   s.version          = '1.0.2'
