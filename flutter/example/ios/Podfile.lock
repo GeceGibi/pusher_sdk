@@ -1,8 +1,11 @@
 PODS:
   - Flutter (1.0.0)
   - pusher (0.0.1):
+    - pusher/Flutter (= 0.0.1)
+  - pusher/Flutter (0.0.1):
     - Flutter
-    - PusherStats (~> 0.0.1)
+    - pusher/Stats
+  - pusher/Stats (0.0.1)
   - PusherStats (0.0.1)
 
 DEPENDENCIES:
@@ -20,7 +23,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   Flutter: 71a624a5bc0c04062bf19101d501e466baf2fb47
-  pusher: d95350d37c113f639839c571d5961892e8ec3624
+  pusher: d776918a68e0077039134dd85aa78ba5f2598792
   PusherStats: d30b33c71c1a4959bab585c72e22e2970a207a2a
 
 PODFILE CHECKSUM: c4ca177ed8b470fac1fed477009770fcbcbe7977
