@@ -19,7 +19,7 @@ abstract final class Pusher {
 
   static const _channel = MethodChannel('pusher');
 
-  static String? _deviceId;
+  static String? _clientId;
   static bool _attached = false;
   static bool _initialized = false;
 
@@ -29,8 +29,28 @@ abstract final class Pusher {
   /// True after a successful [init] in this isolate.
   static bool get isInitialized => _initialized;
 
-  /// Stable install id from native storage.
-  static String? get deviceId => _deviceId;
+  /// Stable client install id from native storage.
+  static String? get clientId => _clientId;
+
+  /// Retrieves the stable client id from native storage.
+  static Future<String?> getClientId() async {
+    if (_clientId != null) {
+      return _clientId;
+    }
+
+    if (_platform() == null) {
+      return null;
+    }
+
+    try {
+      final id = await _channel.invokeMethod<String>('clientId');
+      _clientId = id?.toLowerCase();
+      return _clientId;
+    } on Object catch (error) {
+      _logError('getClientId error: $error');
+      return null;
+    }
+  }
 
   /// Loads keys into native, posts hello, attaches foreground listeners.
   ///
@@ -69,9 +89,9 @@ abstract final class Pusher {
     args['enableLogs'] = _logsEnabled;
 
     final id = await _channel.invokeMethod<String>('init', args);
-    _deviceId = id?.toLowerCase();
+    _clientId = id?.toLowerCase();
     _initialized = true;
-    _log('init ok deviceId=$id');
+    _log('init ok clientId=$id');
     attach();
   }
 
@@ -236,35 +256,38 @@ abstract final class Pusher {
       bool isEmulator,
       bool debugMode,
       String appVersionCode,
-      String? osVersion,
-      String? appVersion,
-      String? brand,
-      String? model,
+      String osVersion,
+      String appVersion,
+      String brand,
+      String model,
     })?
   >
   _deviceInfo() async {
     try {
       final info = await DeviceHelpers.getInfo();
       final appVersionCode = info.appBuild.trim();
-
-      if (appVersionCode.isEmpty) {
-        _log('deviceInfo skip: empty appBuild');
-        return null;
-      }
-
       final osVersion = info.osVersion.trim();
       final appVersion = info.appVersion.trim();
       final brand = info.brand.trim();
       final model = info.model.trim();
 
+      if (appVersionCode.isEmpty ||
+          osVersion.isEmpty ||
+          appVersion.isEmpty ||
+          brand.isEmpty ||
+          model.isEmpty) {
+        _log('deviceInfo skip: missing required device fields');
+        return null;
+      }
+
       return (
         isEmulator: info.isEmulator,
         debugMode: kDebugMode || info.isDebugMode,
         appVersionCode: appVersionCode,
-        osVersion: osVersion.isEmpty ? null : osVersion,
-        appVersion: appVersion.isEmpty ? null : appVersion,
-        brand: brand.isEmpty ? null : brand,
-        model: model.isEmpty ? null : model,
+        osVersion: osVersion,
+        appVersion: appVersion,
+        brand: brand,
+        model: model,
       );
     } on Object catch (error) {
       _logError('deviceInfo error: $error');

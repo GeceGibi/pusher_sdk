@@ -69,13 +69,7 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
         result.success(null)
       }
 
-      "deviceId" -> {
-        if (!PusherConfig.isReady(ctx)) {
-          PusherLog.w("deviceId skip: not ready")
-          result.success(null)
-          return
-        }
-
+      "clientId" -> {
         result.success(PusherConfig.resolveDeviceId(ctx))
       }
 

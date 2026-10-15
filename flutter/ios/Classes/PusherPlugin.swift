@@ -57,13 +57,7 @@ public class PusherPlugin: NSObject, FlutterPlugin {
       PusherClient.receipt(nid: nid, status: status)
       result(nil)
 
-    case "deviceId":
-      guard PusherConfig.isReady() else {
-        PusherLog.w("deviceId skip: not ready")
-        result(nil)
-        return
-      }
-
+    case "clientId":
       result(PusherConfig.resolveDeviceId())
 
     case "isInitialized":

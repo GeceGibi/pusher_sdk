@@ -1,34 +1,19 @@
 group = "com.pusher.sdk"
 version = "1.0.2"
 
-buildscript {
-    val kotlinVersion = "2.4.0"
-    repositories {
-        google()
-        mavenCentral()
-    }
-
-    dependencies {
-        classpath("com.android.tools.build:gradle:9.1.0")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
-    }
-}
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-    }
-}
-
 plugins {
     id("com.android.library")
+    id("org.jetbrains.kotlin.android")
 }
 
 android {
     namespace = "com.pusher.sdk"
-
     compileSdk = 36
+
+    defaultConfig {
+        minSdk = 24
+        consumerProguardFiles("consumer-rules.pro")
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -39,10 +24,6 @@ android {
         getByName("main") {
             java.srcDirs("src/main/kotlin")
         }
-    }
-
-    defaultConfig {
-        minSdk = 24
     }
 }
 

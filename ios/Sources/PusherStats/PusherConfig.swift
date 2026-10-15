@@ -5,19 +5,19 @@ public struct PusherDeviceFields {
   public let isEmulator: Bool
   public let debugMode: Bool
   public let appVersionCode: String
-  public let osVersion: String?
-  public let appVersion: String?
-  public let brand: String?
-  public let model: String?
+  public let osVersion: String
+  public let appVersion: String
+  public let brand: String
+  public let model: String
 
   public init(
     isEmulator: Bool,
     debugMode: Bool,
     appVersionCode: String,
-    osVersion: String? = nil,
-    appVersion: String? = nil,
-    brand: String? = nil,
-    model: String? = nil
+    osVersion: String,
+    appVersion: String,
+    brand: String,
+    model: String
   ) {
     self.isEmulator = isEmulator
     self.debugMode = debugMode
@@ -156,59 +156,69 @@ public enum PusherConfig {
     PusherLog.enabled = defaults().bool(forKey: enableLogsKey)
   }
 
+  public static let pendingReceiptsKey = "pusher.pending_receipts"
+
   /// Persists device fields from hello so NSE receipts can reuse them.
   public static func saveDeviceFields(_ fields: PusherDeviceFields) {
     let store = defaults()
     store.set(fields.isEmulator, forKey: isEmulatorKey)
     store.set(fields.debugMode, forKey: debugModeKey)
     store.set(fields.appVersionCode, forKey: appVersionCodeKey)
-
-    if let osVersion = trimmed(fields.osVersion) {
-      store.set(osVersion, forKey: osVersionKey)
-    } else {
-      store.removeObject(forKey: osVersionKey)
-    }
-
-    if let appVersion = trimmed(fields.appVersion) {
-      store.set(appVersion, forKey: appVersionKey)
-    } else {
-      store.removeObject(forKey: appVersionKey)
-    }
-
-    if let brand = trimmed(fields.brand) {
-      store.set(brand, forKey: brandKey)
-    } else {
-      store.removeObject(forKey: brandKey)
-    }
-
-    if let model = trimmed(fields.model) {
-      store.set(model, forKey: modelKey)
-    } else {
-      store.removeObject(forKey: modelKey)
-    }
-
+    store.set(fields.osVersion, forKey: osVersionKey)
+    store.set(fields.appVersion, forKey: appVersionKey)
+    store.set(fields.brand, forKey: brandKey)
+    store.set(fields.model, forKey: modelKey)
     store.synchronize()
   }
 
-  /// Last saved device fields, or nil when hello has not stored them yet.
-  public static func deviceFields() -> PusherDeviceFields? {
+  /// Last saved device fields, or fallback object so receipts are never skipped.
+  public static func deviceFields() -> PusherDeviceFields {
     let store = defaults()
-    guard store.object(forKey: isEmulatorKey) != nil,
-          store.object(forKey: debugModeKey) != nil,
-          let appVersionCode = trimmed(store.string(forKey: appVersionCodeKey))
-    else {
-      return nil
-    }
+    let appVersionCode = trimmed(store.string(forKey: appVersionCodeKey)) ?? "1"
+    let osVersion = trimmed(store.string(forKey: osVersionKey)) ?? ProcessInfo.processInfo.operatingSystemVersionString
+    let appVersion = trimmed(store.string(forKey: appVersionKey)) ?? "1.0.0"
+    let brand = trimmed(store.string(forKey: brandKey)) ?? "Apple"
+    let model = trimmed(store.string(forKey: modelKey)) ?? "iPhone"
 
     return PusherDeviceFields(
       isEmulator: store.bool(forKey: isEmulatorKey),
       debugMode: store.bool(forKey: debugModeKey),
       appVersionCode: appVersionCode,
-      osVersion: trimmed(store.string(forKey: osVersionKey)),
-      appVersion: trimmed(store.string(forKey: appVersionKey)),
-      brand: trimmed(store.string(forKey: brandKey)),
-      model: trimmed(store.string(forKey: modelKey))
+      osVersion: osVersion,
+      appVersion: appVersion,
+      brand: brand,
+      model: model
     )
+  }
+
+  /// Saves an unposted receipt into local disk queue to retry later.
+  public static func enqueuePendingReceipt(nid: String, status: Int) {
+    let trimmedNid = nid.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedNid.isEmpty else { return }
+    let store = defaults()
+    var current = store.stringArray(forKey: pendingReceiptsKey) ?? []
+    let entry = "\(trimmedNid):\(status)"
+    if !current.contains(entry) {
+      current.append(entry)
+      store.set(current, forKey: pendingReceiptsKey)
+      store.synchronize()
+      PusherLog.d("enqueued pending receipt: \(trimmedNid) status=\(status) total=\(current.count)")
+    }
+  }
+
+  /// Returns and clears all pending receipts from disk queue.
+  public static func drainPendingReceipts() -> [(nid: String, status: Int)] {
+    let store = defaults()
+    guard let list = store.stringArray(forKey: pendingReceiptsKey), !list.isEmpty else {
+      return []
+    }
+    store.removeObject(forKey: pendingReceiptsKey)
+    store.synchronize()
+    return list.compactMap { item in
+      let parts = item.split(separator: ":")
+      guard parts.count == 2, let status = Int(parts[1]) else { return nil }
+      return (nid: String(parts[0]), status: status)
+    }
   }
 
   public static func projectId() -> String? {

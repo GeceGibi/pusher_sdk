@@ -23,11 +23,8 @@ Notification Service Extension. Runner should use the pusher plugin pod.
     'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'
   }
 
-  s.source_files = [
-    'pusher/Sources/pusher/PusherLog.swift',
-    'pusher/Sources/pusher/PusherConfig.swift',
-    'pusher/Sources/pusher/PusherClient.swift',
-    'pusher/Sources/pusher/PusherHmac.swift',
-    'pusher/Sources/pusher/PusherStats.swift',
-  ]
+  s.source_files = 'Sources/PusherStats/**/*.{swift,h,m}'
+  s.resource_bundles = {
+    'PusherStats_Privacy' => ['Sources/PusherStats/PrivacyInfo.xcprivacy']
+  }
 end

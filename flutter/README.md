@@ -90,7 +90,9 @@ pod 'PusherStats', :path => File.join('.symlinks', 'plugins', 'pusher', 'ios')
 import PusherStats
 
 // inside didReceive(_:withContentHandler:)
-PusherStats.handleNotification(request.content.userInfo)
+PusherStats.handleNotification(request.content.userInfo) {
+  contentHandler(bestAttemptContent)
+}
 ```
 
 ## Methods
@@ -98,13 +100,58 @@ PusherStats.handleNotification(request.content.userInfo)
 | Method | Role |
 | --- | --- |
 | `init` | Native config + hello + attach |
+| `clientId` / `getClientId` | Stable install/client id |
 | `syncToken` | Hello with FCM token |
 | `hello` / `receipt` / `attach` | Public if needed alone |
 | `onBackgroundMessage` | Optional Dart fallback only |
 
 ```dart
+final clientId = await Pusher.getClientId();
 unawaited(Pusher.syncToken(token: token));
 ```
+
+## Device Payloads
+
+Sample JSON payloads collected from the client and sent to `stats.pusher.tr`:
+
+### 1. Device Registration (`POST /<pid>/hi`)
+
+```json
+{
+  "clientId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "platform": "ios",
+  "locale": "tr_TR",
+  "isEmulator": false,
+  "debugMode": false,
+  "appVersionCode": "100",
+  "sdkVersion": "1.0.2",
+  "token": "fcm_token_optional",
+  "osVersion": "18.0",
+  "appVersion": "1.0.0",
+  "brand": "Apple",
+  "model": "iPhone 15 Pro"
+}
+```
+
+### 2. Notification Receipt (`POST /<pid>/n/<nid>`)
+
+```json
+{
+  "clientId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "platform": "ios",
+  "status": 1,
+  "locale": "tr_TR",
+  "isEmulator": false,
+  "debugMode": false,
+  "appVersionCode": "100",
+  "sdkVersion": "1.0.2",
+  "osVersion": "18.0",
+  "appVersion": "1.0.0",
+  "brand": "Apple",
+  "model": "iPhone 15 Pro"
+}
+```
+*`status`: `1` = delivered, `2` = opened.*
 
 ## Signing
 

@@ -26,6 +26,10 @@ public enum PusherClient {
       let appVersionCode = trimmed(appVersionCode),
       let isEmulator,
       let debugMode,
+      let osVersion = trimmed(osVersion),
+      let appVersion = trimmed(appVersion),
+      let brand = trimmed(brand),
+      let model = trimmed(model),
       let projectId = PusherConfig.projectId()
     else {
       PusherLog.w("hello skip: missing required device fields")
@@ -36,45 +40,45 @@ public enum PusherClient {
       isEmulator: isEmulator,
       debugMode: debugMode,
       appVersionCode: appVersionCode,
-      osVersion: trimmed(osVersion),
-      appVersion: trimmed(appVersion),
-      brand: trimmed(brand),
-      model: trimmed(model)
+      osVersion: osVersion,
+      appVersion: appVersion,
+      brand: brand,
+      model: model
     )
     PusherConfig.saveDeviceFields(fields)
 
     var body: [String: Any] = [
-      "device_id": PusherConfig.resolveDeviceId(),
+      "clientId": PusherConfig.resolveDeviceId(),
       "platform": "ios",
       "locale": trimmed(locale) ?? Locale.current.identifier,
-      "is_emulator": fields.isEmulator,
-      "debug_mode": fields.debugMode,
-      "app_version_code": fields.appVersionCode,
-      "sdk_version": PusherConfig.sdkVersion,
+      "isEmulator": fields.isEmulator,
+      "debugMode": fields.debugMode,
+      "appVersionCode": fields.appVersionCode,
+      "sdkVersion": PusherConfig.sdkVersion,
+      "osVersion": fields.osVersion,
+      "appVersion": fields.appVersion,
+      "brand": fields.brand,
+      "model": fields.model,
     ]
 
     if let token = trimmed(token) {
       body["token"] = token
     }
 
-    if let osVersion = fields.osVersion {
-      body["os_version"] = osVersion
-    }
-
-    if let appVersion = fields.appVersion {
-      body["app_version"] = appVersion
-    }
-
-    if let brand = fields.brand {
-      body["brand"] = brand
-    }
-
-    if let model = fields.model {
-      body["model"] = model
-    }
-
     PusherLog.d("hello enqueue projectId=\(projectId)")
-    postAsync(path: "/\(projectId)/hi", body: body)
+    postAsync(path: "/\(projectId)/hi", body: body) {
+      flushPendingReceipts()
+    }
+  }
+
+  /// Flushes any pending receipts queued from offline or failed previous attempts.
+  public static func flushPendingReceipts() {
+    let pending = PusherConfig.drainPendingReceipts()
+    guard !pending.isEmpty else { return }
+    PusherLog.d("flushing \(pending.count) pending receipts")
+    for item in pending {
+      receipt(nid: item.nid, status: item.status)
+    }
   }
 
   /// Posts one receipt when [nid] is present. [completion] always fires once.
@@ -86,60 +90,57 @@ public enum PusherClient {
     let trimmedNid = nid.trimmingCharacters(in: .whitespacesAndNewlines)
     let ready = PusherConfig.isReady()
     let projectId = PusherConfig.projectId()
-    let fields = PusherConfig.deviceFields()
 
     guard
       !trimmedNid.isEmpty,
       status == statusDelivered || status == statusOpened,
       ready,
-      let projectId,
-      let fields
+      let projectId
     else {
       PusherLog.w(
         "receipt skip: nid='\(trimmedNid)' status=\(status) ready=\(ready) " +
-          "projectId=\(projectId ?? "nil") deviceFields=\(fields != nil)"
+          "projectId=\(projectId ?? "nil")"
       )
+      if !trimmedNid.isEmpty && (status == statusDelivered || status == statusOpened) {
+        PusherConfig.enqueuePendingReceipt(nid: trimmedNid, status: status)
+      }
       completion?()
       return
     }
 
-    let deviceId = PusherConfig.resolveDeviceId()
-
+    var deviceId = PusherConfig.resolveDeviceId()
     if deviceId.isEmpty {
-      PusherLog.w("receipt skip: device id missing")
-      completion?()
-      return
+      deviceId = UUID().uuidString.lowercased()
     }
+
+    let fields = PusherConfig.deviceFields()
 
     var body: [String: Any] = [
       "device_id": deviceId,
+      "clientId": deviceId,
       "platform": "ios",
       "status": status,
       "locale": Locale.current.identifier,
       "is_emulator": fields.isEmulator,
+      "isEmulator": fields.isEmulator,
       "debug_mode": fields.debugMode,
+      "debugMode": fields.debugMode,
       "app_version_code": fields.appVersionCode,
+      "appVersionCode": fields.appVersionCode,
       "sdk_version": PusherConfig.sdkVersion,
+      "sdkVersion": PusherConfig.sdkVersion,
+      "os_version": fields.osVersion,
+      "osVersion": fields.osVersion,
+      "app_version": fields.appVersion,
+      "appVersion": fields.appVersion,
+      "brand": fields.brand,
+      "model": fields.model,
     ]
 
-    if let osVersion = fields.osVersion {
-      body["os_version"] = osVersion
-    }
-
-    if let appVersion = fields.appVersion {
-      body["app_version"] = appVersion
-    }
-
-    if let brand = fields.brand {
-      body["brand"] = brand
-    }
-
-    if let model = fields.model {
-      body["model"] = model
-    }
-
     PusherLog.d("receipt enqueue nid=\(trimmedNid) status=\(status)")
-    postAsync(path: "/\(projectId)/n/\(trimmedNid)", body: body, completion: completion)
+    postAsync(path: "/\(projectId)/n/\(trimmedNid)", body: body, completion: completion, onError: {
+      PusherConfig.enqueuePendingReceipt(nid: trimmedNid, status: status)
+    })
   }
 
   /// Delivered / opened from a notification userInfo map when `nid` is set.
@@ -177,7 +178,8 @@ public enum PusherClient {
   private static func postAsync(
     path: String,
     body: [String: Any],
-    completion: (() -> Void)? = nil
+    completion: (() -> Void)? = nil,
+    onError: (() -> Void)? = nil
   ) {
     DispatchQueue.global(qos: .utility).async {
       defer { completion?() }
@@ -185,6 +187,7 @@ public enum PusherClient {
         try post(path: path, body: body)
       } catch {
         PusherLog.e("POST \(path) failed: \(error)")
+        onError?()
       }
     }
   }
@@ -192,13 +195,13 @@ public enum PusherClient {
   private static func post(path: String, body: [String: Any]) throws {
     guard let statsKey = PusherConfig.statsKey() else {
       PusherLog.w("POST \(path) skip: statsKey null")
-      return
+      throw NSError(domain: "Pusher", code: -1, userInfo: [NSLocalizedDescriptionKey: "statsKey null"])
     }
 
     let rawData = try JSONSerialization.data(withJSONObject: body, options: [])
     guard let raw = String(data: rawData, encoding: .utf8) else {
       PusherLog.w("POST \(path) skip: body encode failed")
-      return
+      throw NSError(domain: "Pusher", code: -2, userInfo: [NSLocalizedDescriptionKey: "body encode failed"])
     }
 
     let timestamp = Int64(Date().timeIntervalSince1970)
@@ -206,13 +209,13 @@ public enum PusherClient {
       method: "POST",
       pathAndQuery: path,
       unixSeconds: timestamp,
-      body: raw,
+      body = raw,
       key: statsKey
     )
 
     guard let url = URL(string: "\(PusherConfig.baseUrl())/v1\(path)") else {
       PusherLog.w("POST \(path) skip: bad url")
-      return
+      throw NSError(domain: "Pusher", code: -3, userInfo: [NSLocalizedDescriptionKey: "bad url"])
     }
 
     PusherLog.d("POST start \(url) body=\(raw)")
@@ -245,5 +248,8 @@ public enum PusherClient {
     }
 
     PusherLog.d("POST response path=\(path) http=\(statusCode) body=\(responseBody)")
+    if statusCode < 200 || statusCode > 299 {
+      throw NSError(domain: "Pusher", code: statusCode, userInfo: [NSLocalizedDescriptionKey: "HTTP \(statusCode): \(responseBody)"])
+    }
   }
 }

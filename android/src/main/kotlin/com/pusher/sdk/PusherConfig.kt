@@ -9,10 +9,10 @@ internal data class PusherDeviceFields(
   val isEmulator: Boolean,
   val debugMode: Boolean,
   val appVersionCode: String,
-  val osVersion: String? = null,
-  val appVersion: String? = null,
-  val brand: String? = null,
-  val model: String? = null,
+  val osVersion: String,
+  val appVersion: String,
+  val brand: String,
+  val model: String,
 )
 
 /// Persists project keys, install id, and last known device fields.
@@ -29,6 +29,7 @@ internal object PusherConfig {
   const val BRAND = "pusher.brand"
   const val MODEL = "pusher.model"
   const val ENABLE_LOGS = "pusher.enable_logs"
+  const val PENDING_RECEIPTS = "pusher.pending_receipts"
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
 
   /// Plugin version; update manually with pubspec.yaml / podspec.
@@ -64,67 +65,65 @@ internal object PusherConfig {
 
   /// Persists device fields from hello so background receipts can reuse them.
   fun saveDeviceFields(context: Context, fields: PusherDeviceFields) {
-    val editor = prefs(context)
+    prefs(context)
       .edit()
       .putBoolean(IS_EMULATOR, fields.isEmulator)
       .putBoolean(DEBUG_MODE, fields.debugMode)
       .putString(APP_VERSION_CODE, fields.appVersionCode)
-
-    val osVersion = fields.osVersion?.trim()
-    if (osVersion.isNullOrEmpty()) {
-      editor.remove(OS_VERSION)
-    } else {
-      editor.putString(OS_VERSION, osVersion)
-    }
-
-    val appVersion = fields.appVersion?.trim()
-    if (appVersion.isNullOrEmpty()) {
-      editor.remove(APP_VERSION)
-    } else {
-      editor.putString(APP_VERSION, appVersion)
-    }
-
-    val brand = fields.brand?.trim()
-    if (brand.isNullOrEmpty()) {
-      editor.remove(BRAND)
-    } else {
-      editor.putString(BRAND, brand)
-    }
-
-    val model = fields.model?.trim()
-    if (model.isNullOrEmpty()) {
-      editor.remove(MODEL)
-    } else {
-      editor.putString(MODEL, model)
-    }
-
-    editor.apply()
+      .putString(OS_VERSION, fields.osVersion)
+      .putString(APP_VERSION, fields.appVersion)
+      .putString(BRAND, fields.brand)
+      .putString(MODEL, fields.model)
+      .apply()
   }
 
-  /// Last saved device fields, or null when hello has not stored them yet.
-  fun deviceFields(context: Context): PusherDeviceFields? {
+  /// Last saved device fields, or fallback object so receipts are never skipped.
+  fun deviceFields(context: Context): PusherDeviceFields {
     val store = prefs(context)
-    if (!store.contains(IS_EMULATOR) ||
-      !store.contains(DEBUG_MODE) ||
-      !store.contains(APP_VERSION_CODE)
-    ) {
-      return null
-    }
-
-    val appVersionCode = store.getString(APP_VERSION_CODE, null)?.trim()
-    if (appVersionCode.isNullOrEmpty()) {
-      return null
-    }
+    val appVersionCode = store.getString(APP_VERSION_CODE, null)?.trim()?.takeIf { it.isNotEmpty() } ?: "1"
+    val osVersion = store.getString(OS_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() } ?: android.os.Build.VERSION.RELEASE ?: "unknown"
+    val appVersion = store.getString(APP_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() } ?: "1.0.0"
+    val brand = store.getString(BRAND, null)?.trim()?.takeIf { it.isNotEmpty() } ?: android.os.Build.MANUFACTURER ?: "Android"
+    val model = store.getString(MODEL, null)?.trim()?.takeIf { it.isNotEmpty() } ?: android.os.Build.MODEL ?: "Device"
 
     return PusherDeviceFields(
       isEmulator = store.getBoolean(IS_EMULATOR, false),
       debugMode = store.getBoolean(DEBUG_MODE, false),
       appVersionCode = appVersionCode,
-      osVersion = store.getString(OS_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() },
-      appVersion = store.getString(APP_VERSION, null)?.trim()?.takeIf { it.isNotEmpty() },
-      brand = store.getString(BRAND, null)?.trim()?.takeIf { it.isNotEmpty() },
-      model = store.getString(MODEL, null)?.trim()?.takeIf { it.isNotEmpty() },
+      osVersion = osVersion,
+      appVersion = appVersion,
+      brand = brand,
+      model = model,
     )
+  }
+
+  /// Saves an unposted receipt into local disk queue to retry later.
+  @Synchronized
+  fun enqueuePendingReceipt(context: Context, nid: String, status: Int) {
+    val trimmed = nid.trim()
+    if (trimmed.isEmpty()) return
+    val prefs = prefs(context)
+    val set = prefs.getStringSet(PENDING_RECEIPTS, emptySet())?.toMutableSet() ?: mutableSetOf()
+    set.add("$trimmed:$status")
+    prefs.edit().putStringSet(PENDING_RECEIPTS, set).apply()
+    PusherLog.d("enqueued pending receipt: $trimmed status=$status total=${set.size}")
+  }
+
+  /// Returns and clears all pending receipts from disk queue.
+  @Synchronized
+  fun drainPendingReceipts(context: Context): List<Pair<String, Int>> {
+    val prefs = prefs(context)
+    val set = prefs.getStringSet(PENDING_RECEIPTS, null)
+    if (set.isNullOrEmpty()) return emptyList()
+    prefs.edit().remove(PENDING_RECEIPTS).apply()
+    return set.mapNotNull { item ->
+      val parts = item.split(":")
+      if (parts.size == 2) {
+        val nid = parts[0]
+        val status = parts[1].toIntOrNull()
+        if (status != null) Pair(nid, status) else null
+      } else null
+    }
   }
 
   fun projectId(context: Context): String? {

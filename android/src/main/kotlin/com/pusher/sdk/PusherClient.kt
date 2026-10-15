@@ -35,12 +35,15 @@ object PusherClient {
       return
     }
 
-    if (appVersionCode.isNullOrBlank() || isEmulator == null || debugMode == null) {
-      PusherLog.w(
-        "hello skip: missing required fields " +
-          "appVersionCode=${appVersionCode.isNullOrBlank()} " +
-          "isEmulator=$isEmulator debugMode=$debugMode",
-      )
+    if (appVersionCode.isNullOrBlank() ||
+      isEmulator == null ||
+      debugMode == null ||
+      osVersion.isNullOrBlank() ||
+      appVersion.isNullOrBlank() ||
+      brand.isNullOrBlank() ||
+      model.isNullOrBlank()
+    ) {
+      PusherLog.w("hello skip: missing required device fields")
       return
     }
 
@@ -48,31 +51,43 @@ object PusherClient {
       isEmulator = isEmulator,
       debugMode = debugMode,
       appVersionCode = appVersionCode.trim(),
-      osVersion = osVersion,
-      appVersion = appVersion,
-      brand = brand,
-      model = model,
+      osVersion = osVersion.trim(),
+      appVersion = appVersion.trim(),
+      brand = brand.trim(),
+      model = model.trim(),
     )
     PusherConfig.saveDeviceFields(context, fields)
 
     val projectId = PusherConfig.projectId(context) ?: return
     val deviceId = PusherConfig.resolveDeviceId(context)
     val body = JSONObject()
-    body.put("device_id", deviceId)
+    body.put("clientId", deviceId)
     body.put("platform", "android")
     body.put("locale", locale?.takeIf { it.isNotBlank() } ?: Locale.getDefault().toString())
-    body.put("is_emulator", fields.isEmulator)
-    body.put("debug_mode", fields.debugMode)
-    body.put("app_version_code", fields.appVersionCode)
-    body.put("sdk_version", PusherConfig.SDK_VERSION)
+    body.put("isEmulator", fields.isEmulator)
+    body.put("debugMode", fields.debugMode)
+    body.put("appVersionCode", fields.appVersionCode)
+    body.put("sdkVersion", PusherConfig.SDK_VERSION)
+    body.put("osVersion", fields.osVersion)
+    body.put("appVersion", fields.appVersion)
+    body.put("brand", fields.brand)
+    body.put("model", fields.model)
     putOptional(body, "token", token)
-    putOptional(body, "os_version", fields.osVersion)
-    putOptional(body, "app_version", fields.appVersion)
-    putOptional(body, "brand", fields.brand)
-    putOptional(body, "model", fields.model)
 
     PusherLog.d("hello enqueue deviceId=$deviceId projectId=$projectId")
-    postAsync(context, "/$projectId/hi", body)
+    postAsync(context, "/$projectId/hi", body) {
+      flushPendingReceipts(context)
+    }
+  }
+
+  /// Flushes any pending receipts queued from offline or failed previous attempts.
+  fun flushPendingReceipts(context: Context) {
+    val pending = PusherConfig.drainPendingReceipts(context)
+    if (pending.isEmpty()) return
+    PusherLog.d("flushing ${pending.size} pending receipts")
+    for ((nid, status) in pending) {
+      receipt(context, nid, status)
+    }
   }
 
   /// Posts one receipt when [nid] is present. [onDone] always fires once.
@@ -80,39 +95,49 @@ object PusherClient {
     val trimmed = nid.trim()
     val projectId = PusherConfig.projectId(context)
     val ready = PusherConfig.isReady(context)
-    val fields = PusherConfig.deviceFields(context)
     val valid = trimmed.isNotEmpty() &&
       (status == STATUS_DELIVERED || status == STATUS_OPENED) &&
       ready &&
-      projectId != null &&
-      fields != null
+      projectId != null
 
     if (!valid) {
       PusherLog.w(
-        "receipt skip: nid='$trimmed' status=$status ready=$ready " +
-          "projectId=$projectId deviceFields=${fields != null}",
+        "receipt skip: nid='$trimmed' status=$status ready=$ready projectId=$projectId",
       )
+      if (trimmed.isNotEmpty() && (status == STATUS_DELIVERED || status == STATUS_OPENED)) {
+        PusherConfig.enqueuePendingReceipt(context, trimmed, status)
+      }
       onDone?.invoke()
       return
     }
 
+    val fields = PusherConfig.deviceFields(context)
     val deviceId = PusherConfig.resolveDeviceId(context)
     val body = JSONObject()
     body.put("device_id", deviceId)
+    body.put("clientId", deviceId)
     body.put("platform", "android")
     body.put("status", status)
     body.put("locale", Locale.getDefault().toString())
-    body.put("is_emulator", fields!!.isEmulator)
+    body.put("is_emulator", fields.isEmulator)
+    body.put("isEmulator", fields.isEmulator)
     body.put("debug_mode", fields.debugMode)
+    body.put("debugMode", fields.debugMode)
     body.put("app_version_code", fields.appVersionCode)
+    body.put("appVersionCode", fields.appVersionCode)
     body.put("sdk_version", PusherConfig.SDK_VERSION)
-    putOptional(body, "os_version", fields.osVersion)
-    putOptional(body, "app_version", fields.appVersion)
-    putOptional(body, "brand", fields.brand)
-    putOptional(body, "model", fields.model)
+    body.put("sdkVersion", PusherConfig.SDK_VERSION)
+    body.put("os_version", fields.osVersion)
+    body.put("osVersion", fields.osVersion)
+    body.put("app_version", fields.appVersion)
+    body.put("appVersion", fields.appVersion)
+    body.put("brand", fields.brand)
+    body.put("model", fields.model)
 
     PusherLog.d("receipt enqueue nid=$trimmed status=$status deviceId=$deviceId")
-    postAsync(context, "/$projectId/n/$trimmed", body, onDone)
+    postAsync(context, "/$projectId/n/$trimmed", body, onDone, onError = {
+      PusherConfig.enqueuePendingReceipt(context, trimmed, status)
+    })
   }
 
   /// Delivered receipt from FCM data map when `nid` is set.
@@ -139,13 +164,17 @@ object PusherClient {
     path: String,
     body: JSONObject,
     onDone: (() -> Unit)? = null,
+    onError: (() -> Unit)? = null,
   ) {
     val appContext = context.applicationContext
     executor.execute {
+      var success = false
       try {
         post(appContext, path, body)
+        success = true
       } catch (error: Exception) {
         PusherLog.e("POST $path failed: ${error.message}", error)
+        onError?.invoke()
       } finally {
         onDone?.invoke()
       }
@@ -156,7 +185,7 @@ object PusherClient {
     val statsKey = PusherConfig.statsKey(context)
     if (statsKey == null) {
       PusherLog.w("POST $path skip: statsKey null")
-      return
+      throw IllegalStateException("statsKey is null")
     }
 
     val raw = body.toString()
@@ -190,6 +219,9 @@ object PusherClient {
       val code = connection.responseCode
       val responseBody = readBody(connection)
       PusherLog.d("POST response path=$path http=$code body=$responseBody")
+      if (code !in 200..299) {
+        throw java.io.IOException("HTTP $code: $responseBody")
+      }
     } finally {
       connection.disconnect()
     }
