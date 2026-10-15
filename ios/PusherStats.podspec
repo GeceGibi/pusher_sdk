@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'PusherStats'
-  s.version          = '1.0.2'
+  s.version          = '0.0.1'
   s.summary          = 'Pusher notification receipts (no Flutter; for NSE)'
   s.description      = <<-DESC
 Native hello and receipt helpers without Flutter.framework. Use this pod in a

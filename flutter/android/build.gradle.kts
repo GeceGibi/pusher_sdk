@@ -1,5 +1,5 @@
 group = "com.pusher.sdk"
-version = "1.0.2"
+version = "0.0.1"
 
 buildscript {
     repositories {
@@ -33,8 +33,13 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         minSdk = 24
+        buildConfigField("String", "SDK_VERSION", "\"$version\"")
     }
 
     sourceSets {

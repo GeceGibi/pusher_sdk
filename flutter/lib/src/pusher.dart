@@ -44,8 +44,7 @@ abstract final class Pusher {
 
     try {
       final id = await _channel.invokeMethod<String>('clientId');
-      _clientId = id?.toLowerCase();
-      return _clientId;
+      return _clientId = id?.toLowerCase();
     } on Object catch (error) {
       _logError('getClientId error: $error');
       return null;

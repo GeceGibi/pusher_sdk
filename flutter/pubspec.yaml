@@ -1,7 +1,7 @@
 name: pusher
 description: Pusher mobile SDK — device hello and notification receipts.
 publish_to: none
-version: 1.0.2
+version: 0.0.1
 homepage: https://github.com/GeceGibi/pusher_sdk
 
 environment:

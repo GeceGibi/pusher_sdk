@@ -32,8 +32,8 @@ internal object PusherConfig {
   const val PENDING_RECEIPTS = "pusher.pending_receipts"
   const val DEFAULT_BASE_URL = "https://stats.pusher.tr"
 
-  /// Plugin version; update manually with pubspec.yaml / podspec.
-  const val SDK_VERSION = "1.0.2"
+  /// Sourced from build.gradle.kts via BuildConfig.
+  val SDK_VERSION: String get() = BuildConfig.SDK_VERSION
 
   fun prefs(context: Context): SharedPreferences {
     return context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

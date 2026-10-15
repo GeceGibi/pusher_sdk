@@ -1,5 +1,5 @@
 group = "com.pusher.sdk"
-version = "1.0.2"
+version = "0.0.1"
 
 plugins {
     id("com.android.library")
@@ -10,9 +10,14 @@ android {
     namespace = "com.pusher.sdk"
     compileSdk = 36
 
+    buildFeatures {
+        buildConfig = true
+    }
+
     defaultConfig {
         minSdk = 24
         consumerProguardFiles("consumer-rules.pro")
+        buildConfigField("String", "SDK_VERSION", "\"$version\"")
     }
 
     compileOptions {

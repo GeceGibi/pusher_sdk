@@ -66,9 +66,9 @@ public enum PusherClient {
     }
 
     PusherLog.d("hello enqueue projectId=\(projectId)")
-    postAsync(path: "/\(projectId)/hi", body: body) {
+    postAsync(path: "/\(projectId)/hi", body: body, completion: {
       flushPendingReceipts()
-    }
+    })
   }
 
   /// Flushes any pending receipts queued from offline or failed previous attempts.
@@ -115,23 +115,16 @@ public enum PusherClient {
 
     let fields = PusherConfig.deviceFields()
 
-    var body: [String: Any] = [
-      "device_id": deviceId,
+    let body: [String: Any] = [
       "clientId": deviceId,
       "platform": "ios",
       "status": status,
       "locale": Locale.current.identifier,
-      "is_emulator": fields.isEmulator,
       "isEmulator": fields.isEmulator,
-      "debug_mode": fields.debugMode,
       "debugMode": fields.debugMode,
-      "app_version_code": fields.appVersionCode,
       "appVersionCode": fields.appVersionCode,
-      "sdk_version": PusherConfig.sdkVersion,
       "sdkVersion": PusherConfig.sdkVersion,
-      "os_version": fields.osVersion,
       "osVersion": fields.osVersion,
-      "app_version": fields.appVersion,
       "appVersion": fields.appVersion,
       "brand": fields.brand,
       "model": fields.model,

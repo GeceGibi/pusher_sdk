@@ -3,7 +3,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'pusher'
-  s.version          = '1.0.2'
+  s.version          = '0.0.1'
   s.summary          = 'Pusher mobile SDK Flutter plugin'
   s.description      = <<-DESC
 Flutter plugin bridge for Pusher native hello and notification receipts.
@@ -21,7 +21,7 @@ Flutter plugin bridge for Pusher native hello and notification receipts.
   }
 
   s.dependency 'Flutter'
-  s.dependency 'PusherStats', '~> 1.0.2'
+  s.dependency 'PusherStats', '~> 0.0.1'
 
   s.source_files = 'Classes/**/*'
 end
