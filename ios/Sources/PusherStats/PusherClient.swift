@@ -246,16 +246,20 @@ public enum PusherClient {
     var statusCode = -1
     var responseBody = ""
 
-    URLSession.shared.dataTask(with: request) { data, response, error in
+    let task = URLSession.shared.dataTask(with: request) { data, response, error in
       requestError = error
       statusCode = (response as? HTTPURLResponse)?.statusCode ?? -1
       if let data, let text = String(data: data, encoding: .utf8) {
         responseBody = text
       }
       semaphore.signal()
-    }.resume()
+    }
+    task.resume()
 
-    _ = semaphore.wait(timeout: .now() + 15)
+    if (semaphore.wait(timeout: .now() + 15) == .timedOut) {
+      task.cancel()
+      throw URLError(.timedOut)
+    }
     if let requestError {
       throw requestError
     }
