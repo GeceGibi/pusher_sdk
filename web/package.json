@@ -1,0 +1,10 @@
+{
+  "name": "pusher-web",
+  "private": true,
+  "scripts": {
+    "uglify": "node scripts/uglify.js"
+  },
+  "devDependencies": {
+    "terser": "^5.44.0"
+  }
+}
