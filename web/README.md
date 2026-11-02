@@ -11,10 +11,10 @@ Do not put a Firebase service account or server key in the page.
 
 ## Install
 
-Ship `dist/pusher.js`. Rebuild it with `npm run uglify` after changing `pusher.js`.
+Ship `dist/pusher.js` as `https://cdn.pusher.tr/pusher.js`. Rebuild it with `npm run uglify` after changing `pusher.js`, then copy the file to `/var/www/pusher.tr/cdn/pusher.js`.
 
 ```html
-<script src="dist/pusher.js"></script>
+<script src="https://cdn.pusher.tr/pusher.js"></script>
 <script>
   Pusher.init({
     projectId: 'YOUR_PROJECT_ID',
