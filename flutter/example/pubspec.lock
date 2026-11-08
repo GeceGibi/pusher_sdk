@@ -70,7 +70,7 @@ packages:
     description:
       path: "."
       ref: HEAD
-      resolved-ref: aab0c824385a64b8ee3e48fda5e3642544922032
+      resolved-ref: "42658e77d230819153b10beed9109befa311d7a7"
       url: "https://github.com/GeceGibi/device_helpers.git"
     source: git
     version: "2.0.1+31"
@@ -286,7 +286,7 @@ packages:
       path: ".."
       relative: true
     source: path
-    version: "0.0.1"
+    version: "0.0.3"
   sky_engine:
     dependency: transitive
     description: flutter

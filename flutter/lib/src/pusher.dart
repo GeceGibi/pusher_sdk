@@ -8,7 +8,8 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import 'package:pusher/src/pusher_notification_status.dart';
+import 'package:pusher/features/inbox/models/models.dart';
+import 'package:pusher/shared/models/models.dart';
 
 /// Flutter client for the Pusher mobile SDK.
 ///
@@ -122,7 +123,7 @@ abstract final class Pusher {
   ///
   /// Calls `GET send.pusher.tr/v1/<projectId>/notifications/inbox/<clientId>`
   /// with the same HMAC scheme as stats (`x-timestamp` / `x-signature`).
-  static Future<List<Map<String, dynamic>>> inbox() async {
+  static Future<List<InboxItem>> inbox() async {
     final projectId = _projectId;
     final statsKey = _statsKey;
     if (projectId == null || statsKey == null) {
@@ -172,7 +173,8 @@ abstract final class Pusher {
       }
       return [
         for (final item in data)
-          if (item is Map) Map<String, dynamic>.from(item),
+          if (item is Map)
+            InboxItem.fromJson(Map<String, dynamic>.from(item)),
       ];
     } finally {
       client.close(force: true);

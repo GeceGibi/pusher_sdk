@@ -109,7 +109,7 @@ PusherStats.handleNotification(request.content.userInfo) {
 ```dart
 final clientId = await Pusher.getClientId();
 unawaited(Pusher.syncToken(token: token));
-final inbox = await Pusher.inbox();
+final List<InboxItem> inbox = await Pusher.inbox();
 ```
 
 ## Device Payloads
