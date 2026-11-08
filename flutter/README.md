@@ -28,7 +28,7 @@ Android package: `com.pusher.sdk`.
 
 | Arg | What |
 | --- | --- |
-| `projectId` | Project id (`pid`) from the panel |
+| `projectId` | Project public key from panel Settings (not Mongo `_id`) |
 | `statsKey` | Per-project stats key from the panel |
 
 ## Quick start
