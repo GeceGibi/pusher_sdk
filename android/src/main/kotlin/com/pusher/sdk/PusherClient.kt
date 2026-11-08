@@ -182,7 +182,7 @@ object PusherClient {
 
     val fields = PusherConfig.deviceFields(context)
     val body = JSONObject()
-      .put("clientId", PusherConfig.resolveDeviceId(context))
+      .put("clientId", PusherConfig.resolveClientId(context))
       .put("platform", "android")
       .put("locale", item.locale ?: Locale.getDefault().toString())
       .put("isEmulator", fields.isEmulator)

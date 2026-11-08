@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:device_helpers/device_helpers.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -17,9 +19,15 @@ abstract final class Pusher {
   /// Log tag / prefix. Filter: `adb logcat | rg Pusher` or `-s Pusher`.
   static const logTag = 'Pusher';
 
+  /// Default send API host for [inbox].
+  static const defaultSendBaseUrl = 'https://send.pusher.tr';
+
   static const _channel = MethodChannel('pusher');
 
   static String? _clientId;
+  static String? _projectId;
+  static String? _statsKey;
+  static String _sendBaseUrl = defaultSendBaseUrl;
   static bool _attached = false;
   static bool _initialized = false;
 
@@ -59,10 +67,14 @@ abstract final class Pusher {
   ///
   /// [enableLogs] defaults to [kDebugMode]. Pass `false` to silence
   /// non-error logs even in debug. Errors always log.
+  ///
+  /// [sendBaseUrl] overrides the host used by [inbox]
+  /// (default [defaultSendBaseUrl]).
   static Future<void> init({
     required String projectId,
     required String statsKey,
     bool? enableLogs,
+    String? sendBaseUrl,
   }) async {
     _logsEnabled = enableLogs ?? kDebugMode;
 
@@ -76,6 +88,18 @@ abstract final class Pusher {
     if (key.isEmpty) {
       throw ArgumentError.value(statsKey, 'statsKey', 'required');
     }
+
+    final sendUrl = (sendBaseUrl ?? defaultSendBaseUrl).trim().replaceAll(
+      RegExp(r'/+$'),
+      '',
+    );
+    if (sendUrl.isEmpty) {
+      throw ArgumentError.value(sendBaseUrl, 'sendBaseUrl', 'required');
+    }
+
+    _projectId = pid;
+    _statsKey = key;
+    _sendBaseUrl = sendUrl;
 
     if (_platform() == null) {
       _log('init skip: unsupported platform');
@@ -92,6 +116,67 @@ abstract final class Pusher {
     _initialized = true;
     _log('init ok clientId=$id');
     attach();
+  }
+
+  /// This install's receipt inbox (last 7 days).
+  ///
+  /// Calls `GET send.pusher.tr/v1/<projectId>/notifications/inbox/<clientId>`
+  /// with the same HMAC scheme as stats (`x-timestamp` / `x-signature`).
+  static Future<List<Map<String, dynamic>>> inbox() async {
+    final projectId = _projectId;
+    final statsKey = _statsKey;
+    if (projectId == null || statsKey == null) {
+      throw StateError('Call Pusher.init before inbox');
+    }
+
+    final id = await getClientId();
+    if (id == null || id.isEmpty) {
+      throw StateError('clientId unavailable');
+    }
+
+    final pathAndQuery =
+        '/$projectId/notifications/inbox/${Uri.encodeComponent(id)}';
+    final unix = DateTime.now().toUtc().millisecondsSinceEpoch ~/ 1000;
+    final canonical = ['GET', pathAndQuery, '$unix', ''].join('\n');
+    final digest = Hmac(
+      sha256,
+      utf8.encode(statsKey),
+    ).convert(utf8.encode(canonical));
+    final signature = base64Encode(digest.bytes);
+
+    final uri = Uri.parse('$_sendBaseUrl/v1$pathAndQuery');
+    final client = HttpClient();
+    try {
+      final request = await client.getUrl(uri);
+      request.headers.set('x-timestamp', '$unix');
+      request.headers.set('x-signature', signature);
+      final response = await request.close();
+      final body = await response.transform(utf8.decoder).join();
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw HttpException(
+          'inbox HTTP ${response.statusCode}: $body',
+          uri: uri,
+        );
+      }
+
+      final decoded = jsonDecode(body);
+      if (decoded is! Map) {
+        throw const FormatException('inbox: expected object');
+      }
+      if (decoded['status'] != true) {
+        throw StateError('inbox failed: ${decoded['message'] ?? body}');
+      }
+      final data = decoded['data'];
+      if (data is! List) {
+        return const [];
+      }
+      return [
+        for (final item in data)
+          if (item is Map) Map<String, dynamic>.from(item),
+      ];
+    } finally {
+      client.close(force: true);
+    }
   }
 
   /// Foreground delivered + notification-open listeners.

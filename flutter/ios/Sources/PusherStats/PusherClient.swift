@@ -182,14 +182,14 @@ public enum PusherClient {
       throw NSError(domain: "Pusher", code: -1, userInfo: [NSLocalizedDescriptionKey: "config missing"])
     }
 
-    var deviceId = PusherConfig.resolveDeviceId()
-    if deviceId.isEmpty {
-      deviceId = UUID().uuidString.lowercased()
+    var clientId = PusherConfig.resolveClientId()
+    if clientId.isEmpty {
+      clientId = UUID().uuidString.lowercased()
     }
 
     let fields = PusherConfig.deviceFields()
     var body: [String: Any] = [
-      "clientId": deviceId,
+      "clientId": clientId,
       "platform": "ios",
       "locale": item.locale ?? Locale.current.identifier,
       "isEmulator": fields.isEmulator,

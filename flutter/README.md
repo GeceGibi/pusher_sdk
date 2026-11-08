@@ -103,11 +103,13 @@ PusherStats.handleNotification(request.content.userInfo) {
 | `clientId` / `getClientId` | Stable install/client id |
 | `syncToken` | Hello with FCM token |
 | `hello` / `receipt` / `attach` | Public if needed alone |
+| `inbox` | This install’s receipt inbox (HMAC → send) |
 | `onBackgroundMessage` | Optional Dart fallback only |
 
 ```dart
 final clientId = await Pusher.getClientId();
 unawaited(Pusher.syncToken(token: token));
+final inbox = await Pusher.inbox();
 ```
 
 ## Device Payloads
@@ -124,7 +126,7 @@ Sample JSON payloads collected from the client and sent to `stats.pusher.tr`:
   "isEmulator": false,
   "debugMode": false,
   "appVersionCode": "100",
-  "sdkVersion": "0.0.1",
+  "sdkVersion": "0.0.2",
   "token": "fcm_token_optional",
   "osVersion": "18.0",
   "appVersion": "1.0.0",
@@ -144,7 +146,7 @@ Sample JSON payloads collected from the client and sent to `stats.pusher.tr`:
   "isEmulator": false,
   "debugMode": false,
   "appVersionCode": "100",
-  "sdkVersion": "0.0.1",
+  "sdkVersion": "0.0.2",
   "osVersion": "18.0",
   "appVersion": "1.0.0",
   "brand": "Apple",

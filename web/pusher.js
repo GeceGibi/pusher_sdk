@@ -2,10 +2,11 @@
 (function (root) {
   'use strict';
 
-  var baseUrl = 'https://stats.pusher.tr';
+  var statsBaseUrl = 'https://stats.pusher.tr';
+  var sendBaseUrl = 'https://send.pusher.tr';
   var projectId = '';
   var statsKey = '';
-  var sdkVersion = '1.0.0';
+  var sdkVersion = '0.0.2';
 
   function trim(value) {
     return value == null ? '' : String(value).trim();
@@ -69,7 +70,7 @@
       });
   }
 
-  function post(path, payload) {
+  function post(baseUrl, path, payload) {
     requireInit();
     var body = JSON.stringify(payload);
     return sign('POST', path, body).then(function (signed) {
@@ -81,6 +82,21 @@
           'x-signature': signed.signature,
         },
         body: body,
+      });
+    }).then(function (response) {
+      return response.json();
+    });
+  }
+
+  function get(baseUrl, pathAndQuery) {
+    requireInit();
+    return sign('GET', pathAndQuery, '').then(function (signed) {
+      return fetch(baseUrl + '/v1' + pathAndQuery, {
+        method: 'GET',
+        headers: {
+          'x-timestamp': signed.timestamp,
+          'x-signature': signed.signature,
+        },
       });
     }).then(function (response) {
       return response.json();
@@ -111,7 +127,10 @@
       projectId = trim(options.projectId);
       statsKey = trim(options.statsKey);
       if (options.baseUrl) {
-        baseUrl = trim(options.baseUrl).replace(/\/+$/, '');
+        statsBaseUrl = trim(options.baseUrl).replace(/\/+$/, '');
+      }
+      if (options.sendBaseUrl) {
+        sendBaseUrl = trim(options.sendBaseUrl).replace(/\/+$/, '');
       }
       if (!projectId || !statsKey) {
         throw new Error('projectId and statsKey required');
@@ -127,7 +146,7 @@
       if (!fields.token) {
         delete fields.token;
       }
-      return post('/' + projectId + '/hi', fields);
+      return post(statsBaseUrl, '/' + projectId + '/hi', fields);
     },
 
     receipt: function (options) {
@@ -143,7 +162,20 @@
       var fields = deviceFields({});
       delete fields.token;
       fields.status = status;
-      return post('/' + projectId + '/n/' + nid, fields);
+      return post(statsBaseUrl, '/' + projectId + '/n/' + nid, fields);
+    },
+
+    inbox: function () {
+      requireInit();
+      var id = clientId();
+      var path =
+        '/' + projectId + '/notifications/inbox/' + encodeURIComponent(id);
+      return get(sendBaseUrl, path).then(function (body) {
+        if (!body || body.status !== true) {
+          throw new Error((body && body.message) || 'inbox failed');
+        }
+        return Array.isArray(body.data) ? body.data : [];
+      });
     },
 
     subscribe: function (options) {
@@ -162,7 +194,7 @@
     if (!token || !name) {
       return Promise.reject(new Error('token and topic required'));
     }
-    return post('/' + projectId + '/topic', {
+    return post(statsBaseUrl, '/' + projectId + '/topic', {
       token: token,
       topic: name,
       op: op,

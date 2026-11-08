@@ -50,10 +50,10 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
         PusherConfig.save(ctx, projectId, statsKey)
         val enableLogs = call.argument<Boolean>("enableLogs") ?: false
         PusherConfig.setEnableLogs(ctx, enableLogs)
-        val deviceId = PusherConfig.resolveDeviceId(ctx)
-        PusherLog.d("init saved projectId=$projectId deviceId=$deviceId")
+        val clientId = PusherConfig.resolveClientId(ctx)
+        PusherLog.d("init saved projectId=$projectId clientId=$clientId")
         helloFromCall(ctx, call)
-        result.success(deviceId)
+        result.success(clientId)
       }
 
       "hello" -> {
@@ -70,7 +70,7 @@ class PusherPlugin : FlutterPlugin, MethodCallHandler {
       }
 
       "clientId" -> {
-        result.success(PusherConfig.resolveDeviceId(ctx))
+        result.success(PusherConfig.resolveClientId(ctx))
       }
 
       "isInitialized" -> {

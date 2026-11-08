@@ -28,11 +28,12 @@ Ship `dist/pusher.js` as `https://cdn.pusher.tr/js/pusher.js`. Rebuild it with `
 
 | Method | Role |
 | --- | --- |
-| `init({ projectId, statsKey, baseUrl })` | Saves the keys. Returns the client id. |
+| `init({ projectId, statsKey, baseUrl, sendBaseUrl })` | Saves the keys. Returns the client id. |
 | `subscribe({ token, topic })` | Asks stats to subscribe this FCM token. |
 | `unsubscribe({ token, topic })` | Asks stats to unsubscribe it. |
 | `hello({ token })` | Device hello. A token is stored only if Firebase accepts it. |
 | `receipt({ nid, status })` | `status` is `1` delivered or `2` opened. |
+| `inbox()` | This install’s receipt inbox (`send.pusher.tr`, HMAC). |
 | `clientId()` | Stable id kept in `localStorage`. |
 
 `token` comes from Firebase `getToken`. `topic` must be a topic key that

@@ -42,10 +42,10 @@ public class PusherPlugin: NSObject, FlutterPlugin {
       )
       let enableLogs = args["enableLogs"] as? Bool ?? false
       PusherConfig.setEnableLogs(enableLogs)
-      let deviceId = PusherConfig.resolveDeviceId()
-      PusherLog.d("init saved projectId=\(projectId) deviceId=\(deviceId)")
+      let clientId = PusherConfig.resolveClientId()
+      PusherLog.d("init saved projectId=\(projectId) clientId=\(clientId)")
       helloFromArgs(args)
-      result(deviceId)
+      result(clientId)
 
     case "hello":
       helloFromArgs(args)
@@ -59,7 +59,7 @@ public class PusherPlugin: NSObject, FlutterPlugin {
       result(nil)
 
     case "clientId":
-      result(PusherConfig.resolveDeviceId())
+      result(PusherConfig.resolveClientId())
 
     case "isInitialized":
       result(PusherConfig.isReady())

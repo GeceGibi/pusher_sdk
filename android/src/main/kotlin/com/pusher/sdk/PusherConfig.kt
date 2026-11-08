@@ -60,7 +60,9 @@ internal object PusherConfig {
   private const val PREFS = "pusher"
   const val PROJECT_ID = "pusher.project_id"
   const val STATS_KEY = "pusher.stats_key"
-  const val DEVICE_ID = "pusher.device_id"
+  const val CLIENT_ID = "pusher.clientId"
+  /** Pre-clientId install id key; migrated into [CLIENT_ID] on read. */
+  private const val LEGACY_CLIENT_ID = "pusher.device_id"
   const val IS_EMULATOR = "pusher.is_emulator"
   const val DEBUG_MODE = "pusher.debug_mode"
   const val APP_VERSION_CODE = "pusher.app_version_code"
@@ -187,19 +189,26 @@ internal object PusherConfig {
     return DEFAULT_BASE_URL
   }
 
-  fun resolveDeviceId(context: Context): String {
+  fun resolveClientId(context: Context): String {
     val prefs = prefs(context)
-    val existing = prefs.getString(DEVICE_ID, null)?.trim()
+    val existing = prefs.getString(CLIENT_ID, null)?.trim()
     if (!existing.isNullOrEmpty()) {
       val lower = existing.lowercase()
       if (lower != existing) {
-        prefs.edit().putString(DEVICE_ID, lower).apply()
+        prefs.edit().putString(CLIENT_ID, lower).apply()
       }
       return lower
     }
 
+    val migrated = prefs.getString(LEGACY_CLIENT_ID, null)?.trim()
+    if (!migrated.isNullOrEmpty()) {
+      val lower = migrated.lowercase()
+      prefs.edit().putString(CLIENT_ID, lower).remove(LEGACY_CLIENT_ID).apply()
+      return lower
+    }
+
     val created = UUID.randomUUID().toString().lowercase()
-    prefs.edit().putString(DEVICE_ID, created).apply()
+    prefs.edit().putString(CLIENT_ID, created).apply()
     return created
   }
 

@@ -33,7 +33,9 @@ public struct PusherDeviceFields {
 public enum PusherConfig {
   public static let projectIdKey = "pusher.project_id"
   public static let statsKeyKey = "pusher.stats_key"
-  public static let deviceIdKey = "pusher.device_id"
+  public static let clientIdKey = "pusher.clientId"
+  /// Pre-clientId install id key; migrated into [clientIdKey] on read.
+  private static let legacyClientIdKey = "pusher.device_id"
   public static let isEmulatorKey = "pusher.is_emulator"
   public static let debugModeKey = "pusher.debug_mode"
   public static let appVersionCodeKey = "pusher.app_version_code"
@@ -45,7 +47,7 @@ public enum PusherConfig {
   public static let defaultBaseUrl = "https://stats.pusher.tr"
 
   /// Plugin version; update manually with pubspec.yaml / podspec.
-  public static let sdkVersion = "0.0.1"
+  public static let sdkVersion = "0.0.2"
 
   /// UserDefaults for the main app or the shared App Group.
   ///
@@ -74,7 +76,8 @@ public enum PusherConfig {
     let keys = [
       projectIdKey,
       statsKeyKey,
-      deviceIdKey,
+      clientIdKey,
+      legacyClientIdKey,
       isEmulatorKey,
       debugModeKey,
       appVersionCodeKey,
@@ -246,14 +249,22 @@ public enum PusherConfig {
     return defaultBaseUrl
   }
 
-  public static func resolveDeviceId() -> String {
+  public static func resolveClientId() -> String {
     let store = defaults()
-    if let existing = trimmed(store.string(forKey: deviceIdKey)) {
+    if let existing = trimmed(store.string(forKey: clientIdKey)) {
       let lower = existing.lowercased()
       if lower != existing {
-        store.set(lower, forKey: deviceIdKey)
+        store.set(lower, forKey: clientIdKey)
         store.synchronize()
       }
+      return lower
+    }
+
+    if let migrated = trimmed(store.string(forKey: legacyClientIdKey)) {
+      let lower = migrated.lowercased()
+      store.set(lower, forKey: clientIdKey)
+      store.removeObject(forKey: legacyClientIdKey)
+      store.synchronize()
       return lower
     }
 
@@ -262,15 +273,16 @@ public enum PusherConfig {
     }
 
     if store !== UserDefaults.standard,
-       let legacy = trimmed(UserDefaults.standard.string(forKey: deviceIdKey)) {
+       let legacy = trimmed(UserDefaults.standard.string(forKey: clientIdKey))
+        ?? trimmed(UserDefaults.standard.string(forKey: legacyClientIdKey)) {
       let lower = legacy.lowercased()
-      store.set(lower, forKey: deviceIdKey)
+      store.set(lower, forKey: clientIdKey)
       store.synchronize()
       return lower
     }
 
     let created = UUID().uuidString.lowercased()
-    store.set(created, forKey: deviceIdKey)
+    store.set(created, forKey: clientIdKey)
     store.synchronize()
     return created
   }
