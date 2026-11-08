@@ -5,7 +5,8 @@ Firebase web cannot subscribe to a topic itself, so `subscribe` sends the FCM
 token and topic to stats. Stats checks the token with Firebase and does not
 store a rejected token.
 
-`projectId` identifies the project. It is not a secret. `statsKey` signs each
+`projectId` is the project public key from the panel Settings (not the Mongo
+ObjectId). It is not a secret. `statsKey` signs each
 request. It is visible in the page, the same way the mobile SDK carries it.
 Do not put a Firebase service account or server key in the page.
 
