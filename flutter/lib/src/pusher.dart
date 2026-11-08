@@ -146,6 +146,7 @@ abstract final class Pusher {
     final signature = base64Encode(digest.bytes);
 
     final uri = Uri.parse('$_sendBaseUrl/v1$pathAndQuery');
+    _log('inbox request GET $uri');
     final client = HttpClient();
     try {
       final request = await client.getUrl(uri);
@@ -153,6 +154,7 @@ abstract final class Pusher {
       request.headers.set('x-signature', signature);
       final response = await request.close();
       final body = await response.transform(utf8.decoder).join();
+      _log('inbox response ${response.statusCode} $body');
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw HttpException(
           'inbox HTTP ${response.statusCode}: $body',
@@ -167,18 +169,29 @@ abstract final class Pusher {
       if (decoded['status'] != true) {
         throw StateError('inbox failed: ${decoded['message'] ?? body}');
       }
-      final data = decoded['data'];
-      if (data is! List) {
-        return const [];
-      }
+      final rows = _inboxRows(decoded['data']);
       return [
-        for (final item in data)
+        for (final item in rows)
           if (item is Map)
             InboxItem.fromJson(Map<String, dynamic>.from(item)),
       ];
     } finally {
       client.close(force: true);
     }
+  }
+
+  /// Accepts either a bare list or a `{items: [...]}` page envelope.
+  static List<dynamic> _inboxRows(Object? data) {
+    if (data is List) {
+      return data;
+    }
+    if (data is Map) {
+      final items = data['items'];
+      if (items is List) {
+        return items;
+      }
+    }
+    return const [];
   }
 
   /// Foreground delivered + notification-open listeners.
