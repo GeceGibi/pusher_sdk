@@ -162,7 +162,16 @@
       var fields = deviceFields({});
       delete fields.token;
       fields.status = status;
-      return post(statsBaseUrl, '/' + projectId + '/n/' + nid, fields);
+      var path = '/' + projectId + '/n/' + nid;
+      if (status === 1) {
+        var jitterMs = Math.floor(Math.random() * 5000);
+        return new Promise(function (resolve) {
+          setTimeout(resolve, jitterMs);
+        }).then(function () {
+          return post(statsBaseUrl, path, fields);
+        });
+      }
+      return post(statsBaseUrl, path, fields);
     },
 
     inbox: function () {

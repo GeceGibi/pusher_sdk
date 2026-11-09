@@ -120,13 +120,19 @@ object PusherClient {
 
   private fun submit(context: Context, item: PusherPending, onDone: (() -> Unit)? = null) {
     val app = context.applicationContext
-    executor.execute {
+    val delayMs = if (item.kind == PusherPending.KIND_RECEIPT && item.status == STATUS_DELIVERED) {
+      // Spread delivered receipts. Kept short for the goAsync window.
+      java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 2001)
+    } else {
+      0L
+    }
+    executor.schedule({
       try {
         if (send(app, item)) flush(app)
       } finally {
         onDone?.invoke()
       }
-    }
+    }, delayMs, TimeUnit.MILLISECONDS)
   }
 
   /// Sends the queue in order. Stops at the first retryable failure.
