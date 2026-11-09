@@ -120,9 +120,11 @@ object PusherClient {
 
   private fun submit(context: Context, item: PusherPending, onDone: (() -> Unit)? = null) {
     val app = context.applicationContext
+    // Persist immediately so neither delivered nor opened receipts are lost if the OS kills the process.
+    PusherConfig.enqueuePending(app, item)
     val delayMs = if (item.kind == PusherPending.KIND_RECEIPT && item.status == STATUS_DELIVERED) {
-      // Spread delivered receipts. Kept short for the goAsync window.
-      java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 2001)
+      // Spread delivered receipts across 0–7s (within Android's 10s BroadcastReceiver.goAsync limit).
+      java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 7001)
     } else {
       0L
     }
@@ -141,9 +143,8 @@ object PusherClient {
     if (items.isEmpty()) return
     PusherLog.d("flushing ${items.size} pending")
 
-    for ((index, item) in items.withIndex()) {
+    for (item in items) {
       if (!send(app, item)) {
-        items.drop(index + 1).forEach { PusherConfig.enqueuePending(app, it) }
         return
       }
     }
@@ -153,12 +154,16 @@ object PusherClient {
   private fun send(app: Context, item: PusherPending): Boolean {
     try {
       post(app, item)
+      PusherConfig.removePending(app, item)
       attempt = 0
       return true
     } catch (error: HttpFailure) {
       val retryable = error.code == 408 || error.code == 429 || error.code >= 500
       PusherLog.e("${item.kind} failed: ${error.message}", error)
-      if (!retryable) return true
+      if (!retryable) {
+        PusherConfig.removePending(app, item)
+        return true
+      }
     } catch (error: Exception) {
       PusherLog.e("${item.kind} failed: ${error.message}", error)
     }

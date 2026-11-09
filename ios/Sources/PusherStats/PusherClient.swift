@@ -122,7 +122,12 @@ public enum PusherClient {
   }
 
   private static func submit(_ item: PusherPending, completion: (() -> Void)? = nil) {
-    queue.async {
+    // Persist immediately so neither delivered nor opened receipts are lost if NSE or app is suspended.
+    PusherConfig.enqueuePending(item)
+    let delay: TimeInterval = (item.kind == .receipt && item.status == statusDelivered)
+      ? Double.random(in: 0...5.0)
+      : 0
+    queue.asyncAfter(deadline: .now() + delay) {
       defer { completion?() }
       if send(item) {
         flush()
@@ -136,9 +141,8 @@ public enum PusherClient {
     guard !items.isEmpty else { return }
     PusherLog.d("flushing \(items.count) pending")
 
-    for (index, item) in items.enumerated() {
+    for item in items {
       if !send(item) {
-        items.dropFirst(index + 1).forEach { PusherConfig.enqueuePending($0) }
         return
       }
     }
@@ -148,12 +152,14 @@ public enum PusherClient {
   private static func send(_ item: PusherPending) -> Bool {
     do {
       try post(item)
+      PusherConfig.removePending(item)
       attempt = 0
       return true
     } catch let error as HttpFailure {
       PusherLog.e("\(item.kind.rawValue) failed: HTTP \(error.code) \(error.body)")
       let retryable = error.code == 408 || error.code == 429 || error.code >= 500
       if !retryable {
+        PusherConfig.removePending(item)
         return true
       }
     } catch {

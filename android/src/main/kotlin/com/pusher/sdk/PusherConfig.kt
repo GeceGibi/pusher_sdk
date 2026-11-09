@@ -141,22 +141,35 @@ internal object PusherConfig {
     )
   }
 
-  /// Adds [item] to the disk retry queue. Duplicates are replaced, oldest drop at the cap.
+  /// Adds [item] to the disk retry queue. Duplicates preserve their original [PusherPending.at]
+  /// timestamp so the 48-hour window counts from first creation; oldest drop at the cap.
   @Synchronized
   fun enqueuePending(context: Context, item: PusherPending) {
-    val list = readPending(context).filterNot { it.sameAs(item) }.toMutableList()
-    list.add(item)
+    val now = System.currentTimeMillis()
+    val existing = readPending(context).filter { now - it.at < PENDING_MAX_AGE_MS }
+    val match = existing.firstOrNull { it.sameAs(item) }
+    val merged = if (match != null) item.copy(at = match.at) else item
+    val list = existing.filterNot { it.sameAs(item) }.toMutableList()
+    list.add(merged)
     while (list.size > MAX_PENDING) list.removeAt(0)
     writePending(context, list)
     PusherLog.d("enqueued pending ${item.kind} total=${list.size}")
   }
 
-  /// Returns and clears the retry queue. Entries older than [PENDING_MAX_AGE_MS] are dropped.
+  /// Removes [item] from the disk retry queue once sent or permanently rejected.
+  @Synchronized
+  fun removePending(context: Context, item: PusherPending) {
+    val now = System.currentTimeMillis()
+    val list = readPending(context).filter { now - it.at < PENDING_MAX_AGE_MS && !it.sameAs(item) }
+    writePending(context, list)
+  }
+
+  /// Returns non-expired items waiting in the retry queue without removing them yet.
   @Synchronized
   fun drainPending(context: Context): List<PusherPending> {
     val now = System.currentTimeMillis()
     val list = readPending(context).filter { now - it.at < PENDING_MAX_AGE_MS }
-    prefs(context).edit().remove(PENDING_QUEUE).apply()
+    writePending(context, list)
     return list
   }
 
